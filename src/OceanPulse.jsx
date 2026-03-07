@@ -575,9 +575,9 @@ export default function OceanPulse() {
           })()}
 
           <g transform={`translate(14, ${dims.h - 195})`}>
-            <rect x={0} y={0} width={190} height={185} rx={6} fill="#ffffff" stroke="#94a3b8" strokeWidth={1.5} opacity={0.98} />
+            <rect x={0} y={0} width={210} height={185} rx={6} fill="#ffffff" stroke="#94a3b8" strokeWidth={1.5} opacity={0.98} />
             <text x={12} y={20} fill="#0369a1" fontSize={12} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1.5}>{densityMode ? "🔥" : "📍"} LEGEND</text>
-            <line x1={12} y1={24} x2={178} y2={24} stroke="#cbd5e1" strokeWidth={1} />
+            <line x1={12} y1={24} x2={198} y2={24} stroke="#cbd5e1" strokeWidth={1} />
 
             {/* Density Mode Info */}
             {densityMode && (
@@ -585,7 +585,8 @@ export default function OceanPulse() {
                 <text x={12} y={40} fill="#0ea5e9" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">Density Heatmap:</text>
                 <text x={12} y={56} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Blue areas show</text>
                 <text x={12} y={70} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">vessel concentration</text>
-                <text x={12} y={84} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Brighter = Higher density</text>
+                <text x={12} y={84} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Brighter = Higher</text>
+                <text x={12} y={96} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">density</text>
               </g>
             )}
 
@@ -599,19 +600,19 @@ export default function OceanPulse() {
             ))}
 
             {/* Port Congestion */}
-            <line x1={12} y1={densityMode ? 100 : 136} x2={178} y2={densityMode ? 100 : 136} stroke="#e5e7eb" strokeWidth={1} />
-            <text x={12} y={densityMode ? 114 : 150} fill="#64748b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">Port Congestion:</text>
-            <g transform={`translate(12, ${densityMode ? 122 : 158})`}>
+            <line x1={12} y1={densityMode ? 110 : 136} x2={198} y2={densityMode ? 110 : 136} stroke="#e5e7eb" strokeWidth={1} />
+            <text x={12} y={densityMode ? 124 : 150} fill="#64748b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">Port Congestion:</text>
+            <g transform={`translate(12, ${densityMode ? 132 : 158})`}>
               <circle cx={6} cy={6} r={5} fill="none" stroke="#16a34a" strokeWidth={2} />
-              <text x={20} y={11} fill="#1e293b" fontSize={11} fontWeight={500} fontFamily="IBM Plex Mono,monospace">Low (0-49)</text>
+              <text x={20} y={11} fill="#1e293b" fontSize={10} fontWeight={500} fontFamily="IBM Plex Mono,monospace">Low (0-49)</text>
             </g>
-            <g transform={`translate(95, ${densityMode ? 122 : 158})`}>
+            <g transform={`translate(105, ${densityMode ? 132 : 158})`}>
               <circle cx={6} cy={6} r={5} fill="none" stroke="#ea580c" strokeWidth={2} />
-              <text x={20} y={11} fill="#1e293b" fontSize={11} fontWeight={500} fontFamily="IBM Plex Mono,monospace">Med (50-69)</text>
+              <text x={20} y={11} fill="#1e293b" fontSize={10} fontWeight={500} fontFamily="IBM Plex Mono,monospace">Med (50-69)</text>
             </g>
-            <g transform={`translate(12, ${densityMode ? 138 : 174})`}>
+            <g transform={`translate(12, ${densityMode ? 148 : 174})`}>
               <circle cx={6} cy={6} r={5} fill="none" stroke="#dc2626" strokeWidth={2} />
-              <text x={20} y={11} fill="#1e293b" fontSize={11} fontWeight={500} fontFamily="IBM Plex Mono,monospace">High (70+)</text>
+              <text x={20} y={11} fill="#1e293b" fontSize={10} fontWeight={500} fontFamily="IBM Plex Mono,monospace">High (70+)</text>
             </g>
           </g>
 
