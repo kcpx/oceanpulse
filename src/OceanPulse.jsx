@@ -308,7 +308,10 @@ export default function OceanPulse() {
     .filter(v => {
       if (!searchQuery.trim()) return true;
       const query = searchQuery.toLowerCase();
-      return v.name.toLowerCase().includes(query) || v.route.dest.toLowerCase().includes(query);
+      return v.name.toLowerCase().includes(query) ||
+             v.route.name.toLowerCase().includes(query) ||
+             v.flag.toLowerCase().includes(query) ||
+             v.cargo.toLowerCase().includes(query);
     });
 
   // Density heatmap calculation
@@ -418,7 +421,7 @@ export default function OceanPulse() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Vessel name or port..."
+            placeholder="Search by name, route, flag, cargo..."
             style={{
               padding: "6px 32px 6px 12px",
               fontSize: 12,
@@ -557,9 +560,12 @@ export default function OceanPulse() {
             if (x < -5 || x > dims.w + 5 || y < -5 || y > dims.h + 5) return null;
             const color = VESSEL_COLORS[v.type] || "#38bdf8";
             const sel = selVessel?.id === v.id;
+            const query = searchQuery.toLowerCase();
             const isHighlighted = searchQuery.trim() && (
-              v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-              v.route.dest.toLowerCase().includes(searchQuery.toLowerCase())
+              v.name.toLowerCase().includes(query) ||
+              v.route.name.toLowerCase().includes(query) ||
+              v.flag.toLowerCase().includes(query) ||
+              v.cargo.toLowerCase().includes(query)
             );
             const radius = sel ? 7 : isHighlighted ? 5 : 3.5;
             const opacity = sel ? 1 : isHighlighted ? 1 : 0.82;
