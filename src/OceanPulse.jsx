@@ -177,6 +177,7 @@ export default function OceanPulse() {
   const [lastFredFetch, setLastFredFetch] = useState(null);
   const [history, setHistory] = useState([]);
   const [densityMode, setDensityMode] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     const s = document.createElement("script");
@@ -300,7 +301,15 @@ export default function OceanPulse() {
     try { return proj()([lng, lat]) || [0, 0]; } catch { return [0, 0]; }
   }, [proj]);
   const pathFn = useCallback(() => d3.geoPath().projection(proj()), [proj]);
-  const filtered = filter === "All" ? vessels : vessels.filter(v => v.type === filter);
+
+  // Combined filtering: vessel type + search
+  const filtered = vessels
+    .filter(v => filter === "All" || v.type === filter)
+    .filter(v => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      return v.name.toLowerCase().includes(query) || v.route.dest.toLowerCase().includes(query);
+    });
 
   // Density heatmap calculation
   const densityContours = useCallback(() => {
@@ -401,6 +410,48 @@ export default function OceanPulse() {
               {t.toUpperCase()}
             </button>
           ))}
+        </div>
+        <div style={{ width: 1, height: 24, background: "#cbd5e1", margin: "0 8px" }} />
+        <span style={{ fontSize: 12, color: "#64748b", letterSpacing: 2 }}>SEARCH</span>
+        <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Vessel name or port..."
+            style={{
+              padding: "6px 32px 6px 12px",
+              fontSize: 12,
+              borderRadius: 4,
+              border: "1px solid #cbd5e1",
+              background: "#ffffff",
+              color: "#1e293b",
+              width: 220,
+              outline: "none",
+              transition: "all 0.2s"
+            }}
+            onFocus={(e) => e.target.style.borderColor = "#0284c7"}
+            onBlur={(e) => e.target.style.borderColor = "#cbd5e1"}
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              style={{
+                position: "absolute",
+                right: 6,
+                background: "transparent",
+                border: "none",
+                color: "#94a3b8",
+                cursor: "pointer",
+                fontSize: 16,
+                padding: "0 4px",
+                lineHeight: 1
+              }}
+              title="Clear search"
+            >
+              ×
+            </button>
+          )}
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 12, color: "#64748b", letterSpacing: 1 }}>RISK MODE</span>
@@ -506,10 +557,16 @@ export default function OceanPulse() {
             if (x < -5 || x > dims.w + 5 || y < -5 || y > dims.h + 5) return null;
             const color = VESSEL_COLORS[v.type] || "#38bdf8";
             const sel = selVessel?.id === v.id;
+            const isHighlighted = searchQuery.trim() && (
+              v.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              v.route.dest.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+            const radius = sel ? 7 : isHighlighted ? 5 : 3.5;
+            const opacity = sel ? 1 : isHighlighted ? 1 : 0.82;
             return (
               <g key={v.id} onClick={() => setSelVessel(sel ? null : v)} style={{ cursor: "pointer" }}>
-                {sel && <circle cx={x} cy={y} r={16} fill={color} opacity={0.12} />}
-                <circle cx={x} cy={y} r={sel ? 7 : 3.5} fill={color} opacity={sel ? 1 : 0.82} filter={sel ? "url(#glow)" : undefined} stroke={sel ? "#fff" : "none"} strokeWidth={1.5} />
+                {(sel || isHighlighted) && <circle cx={x} cy={y} r={16} fill={color} opacity={0.12} />}
+                <circle cx={x} cy={y} r={radius} fill={color} opacity={opacity} filter={sel || isHighlighted ? "url(#glow)" : undefined} stroke={sel || isHighlighted ? "#fff" : "none"} strokeWidth={1.5} />
               </g>
             );
           })}
