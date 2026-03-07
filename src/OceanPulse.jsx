@@ -39,9 +39,13 @@ const TICKER_ITEMS = ["FBX +4.2%", "BDI +1.8%", "Brent -0.6%", "200 Vessels Acti
 const NAMES = ["MSC GÜLSÜN","EVER GIVEN","COSCO FREIGHT","MAERSK ELBA","CMA CGM ANTOINE","OOCL HONG KONG","EVERGREEN ELITE","YANG MING 21","ZIM INTEGRATED","HAPAG BERLIN","NORDIC CROWN","PACIFIC PIONEER","ATLANTIC BRIDGE","INDIAN VOYAGER","ARCTIC SPIRIT","GOLDEN GATE","SUEZ NAVIGATOR","PANAMA TRADER","HORMUZ GUARDIAN","MALACCA EXPRESS"];
 
 // FRED API Integration
-const FRED_API_KEY = 'd528c9031240f0b55071b3ee062fb59b';
+const FRED_API_KEY = import.meta.env.VITE_FRED_API_KEY;
 const FRED_BDI_URL = `https://api.stlouisfed.org/fred/series/observations?series_id=BDIY&api_key=${FRED_API_KEY}&file_type=json`;
 const FRED_CRUDE_URL = `https://api.stlouisfed.org/fred/series/observations?series_id=DCOILBRENTEU&api_key=${FRED_API_KEY}&file_type=json`;
+
+// OpenWeatherMap API Integration
+const OPENWEATHER_API_KEY = import.meta.env.VITE_OPENWEATHER_API_KEY;
+const OPENWEATHER_BASE_URL = 'https://api.openweathermap.org/data/2.5';
 
 async function fetchBDI() {
   try {
@@ -124,6 +128,46 @@ function buildHistoricalData(fredBDI, fredCrude) {
   return history;
 }
 
+// OpenWeatherMap functions
+async function fetchWeatherForPort(lat, lon) {
+  try {
+    const url = `${OPENWEATHER_BASE_URL}/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric`;
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Weather fetch failed: ${response.status}`);
+    const data = await response.json();
+    return {
+      temp: Math.round(data.main.temp),
+      condition: data.weather[0].main,
+      description: data.weather[0].description,
+      windSpeed: Math.round(data.wind.speed * 1.94384), // Convert m/s to knots
+      windDir: data.wind.deg,
+      humidity: data.main.humidity,
+      pressure: data.main.pressure,
+      icon: data.weather[0].icon
+    };
+  } catch (error) {
+    console.error('Error fetching weather:', error);
+    return null;
+  }
+}
+
+async function fetchAllPortWeather() {
+  try {
+    const weatherPromises = PORTS.map(port =>
+      fetchWeatherForPort(port.coords[1], port.coords[0])
+    );
+    const weatherData = await Promise.all(weatherPromises);
+    const weatherMap = {};
+    PORTS.forEach((port, i) => {
+      weatherMap[port.name] = weatherData[i];
+    });
+    return weatherMap;
+  } catch (error) {
+    console.error('Error fetching all port weather:', error);
+    return {};
+  }
+}
+
 function makeVessels() {
   return Array.from({ length: 200 }, (_, i) => {
     const route = ROUTES[i % ROUTES.length];
@@ -159,6 +203,19 @@ function makeSimulatedHistory() {
 const congColor = s => s >= 70 ? "#dc2626" : s >= 50 ? "#ea580c" : "#16a34a";
 const riskColor = r => r === "HIGH" ? "#dc2626" : "#ea580c";
 
+// Weather helper function
+const getWeatherEmoji = (condition) => {
+  if (!condition) return "";
+  const c = condition.toLowerCase();
+  if (c.includes("clear")) return "☀️";
+  if (c.includes("cloud")) return "☁️";
+  if (c.includes("rain") || c.includes("drizzle")) return "🌧️";
+  if (c.includes("thunder") || c.includes("storm")) return "⛈️";
+  if (c.includes("snow")) return "❄️";
+  if (c.includes("mist") || c.includes("fog")) return "🌫️";
+  return "⛅";
+};
+
 export default function OceanPulse() {
   const containerRef = useRef(null);
   const tickRef = useRef(0);
@@ -178,6 +235,7 @@ export default function OceanPulse() {
   const [history, setHistory] = useState([]);
   const [densityMode, setDensityMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [portWeather, setPortWeather] = useState({});
 
   useEffect(() => {
     const s = document.createElement("script");
@@ -239,6 +297,17 @@ export default function OceanPulse() {
         crude: parseFloat(latestCrude.toFixed(2))
       }));
     }
+  }, []);
+
+  // Load weather data on mount and refresh every 10 minutes
+  useEffect(() => {
+    async function loadWeather() {
+      const weather = await fetchAllPortWeather();
+      setPortWeather(weather);
+    }
+    loadWeather();
+    const weatherInterval = setInterval(loadWeather, 10 * 60 * 1000); // 10 minutes
+    return () => clearInterval(weatherInterval);
   }, []);
 
   useEffect(() => {
@@ -391,6 +460,21 @@ export default function OceanPulse() {
               {dataSource === 'fred' ? 'LIVE FEDERAL RESERVE' : dataSource === 'loading' ? 'FETCHING DATA' : 'DEMO MODE'}
             </div>
           </div>
+          {(() => {
+            const stormsAtPorts = PORTS.filter(p => {
+              const w = portWeather[p.name];
+              return w && (w.condition.toLowerCase().includes("storm") || w.windSpeed > 35);
+            });
+            if (stormsAtPorts.length === 0) return null;
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 14px", background: "rgba(220,38,38,0.1)", borderRadius: 6, border: "1px solid #dc2626" }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#dc2626", animation: "pulse 1.5s infinite" }} />
+                <div style={{ fontSize: 11, color: "#dc2626", fontWeight: 700, letterSpacing: 1 }}>
+                  ⛈️ STORM ALERT: {stormsAtPorts.map(p => p.name).join(", ")}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -581,12 +665,23 @@ export default function OceanPulse() {
             const [x, y] = pt(p.coords[0], p.coords[1]);
             const sel = selPort?.name === p.name;
             const color = congColor(p.congestion);
+            const weather = portWeather[p.name];
+            const weatherIcon = weather ? getWeatherEmoji(weather.condition) : "";
+            const hasStorm = weather && (weather.condition.toLowerCase().includes("storm") || weather.windSpeed > 35);
             return (
               <g key={i} onClick={() => setSelPort(sel ? null : p)} style={{ cursor: "pointer" }}>
                 {sel && <circle cx={x} cy={y} r={16} fill={color} opacity={0.12} />}
+                {hasStorm && <circle cx={x} cy={y} r={28} fill="#dc2626" opacity={0.15} className="storm-pulse" />}
                 <circle cx={x} cy={y} r={sel ? 9 : 6.5} fill="none" stroke={color} strokeWidth={sel ? 2.5 : 2} filter={sel ? "url(#glow)" : undefined} />
                 <circle cx={x} cy={y} r={2.5} fill={color} />
-                <text x={x + 12} y={y + 4} fill="#4a6a8a" fontSize={11} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.3}>{p.name}</text>
+                <text x={x + 12} y={y + 4} fill="#4a6a8a" fontSize={11} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.3}>
+                  {p.name} {weatherIcon}
+                </text>
+                {weather && (
+                  <text x={x + 12} y={y + 16} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">
+                    {weather.temp}°C
+                  </text>
+                )}
               </g>
             );
           })}
@@ -615,13 +710,16 @@ export default function OceanPulse() {
 
           {selPort && (() => {
             const [px, py] = pt(selPort.coords[0], selPort.coords[1]);
+            const weather = portWeather[selPort.name];
+            const hasWeather = weather && weather.temp !== undefined;
+            const popupHeight = hasWeather ? 240 : 180;
             const bx = Math.min(Math.max(px + 18, 5), dims.w - 230);
-            const by = Math.min(Math.max(py - 80, 5), dims.h - 190);
+            const by = Math.min(Math.max(py - 80, 5), dims.h - popupHeight - 10);
             const color = congColor(selPort.congestion);
             return (
               <g>
                 <line x1={px} y1={py} x2={bx + 2} y2={by + 95} stroke={color} strokeWidth={1.2} opacity={0.5} strokeDasharray="4,5" />
-                <rect x={bx} y={by} width={220} height={180} rx={5} fill="#ffffff" stroke={color} strokeWidth={1.5} opacity={0.98} />
+                <rect x={bx} y={by} width={220} height={popupHeight} rx={5} fill="#ffffff" stroke={color} strokeWidth={1.5} opacity={0.98} />
                 <rect x={bx} y={by} width={220} height={24} rx={5} fill={color} opacity={0.12} />
                 <text x={bx + 10} y={by + 17} fill={color} fontSize={12} fontWeight={700} fontFamily="IBM Plex Mono,monospace">PORT: {selPort.name.toUpperCase()}</text>
                 <text x={bx + 195} y={by + 17} fill="#64748b" fontSize={13} style={{ cursor: "pointer" }} onClick={() => setSelPort(null)}>✕</text>
@@ -633,6 +731,18 @@ export default function OceanPulse() {
                 {selPort.routes.map((r, ri) => (
                   <text key={ri} x={bx + 18} y={by + 103 + ri * 21} fill="#475569" fontSize={10} fontFamily="IBM Plex Mono,monospace">→ {r}</text>
                 ))}
+                {hasWeather && (
+                  <>
+                    <line x1={bx + 10} y1={by + 165} x2={bx + 210} y2={by + 165} stroke="#cbd5e1" strokeWidth={1} />
+                    <text x={bx + 10} y={by + 180} fill="#64748b" fontSize={10} fontFamily="IBM Plex Mono,monospace">⛅ WEATHER:</text>
+                    <text x={bx + 18} y={by + 200} fill="#475569" fontSize={10} fontFamily="IBM Plex Mono,monospace">
+                      {weather.temp}°C • {weather.description}
+                    </text>
+                    <text x={bx + 18} y={by + 220} fill="#475569" fontSize={10} fontFamily="IBM Plex Mono,monospace">
+                      Wind: {weather.windSpeed} kn • {weather.humidity}% humidity
+                    </text>
+                  </>
+                )}
               </g>
             );
           })()}
