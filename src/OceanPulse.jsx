@@ -276,7 +276,7 @@ export default function OceanPulse() {
   const [searchQuery, setSearchQuery] = useState("");
   const [portWeather, setPortWeather] = useState({});
   const [showRoutes, setShowRoutes] = useState(false);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(1.3); // Default zoom to show port labels
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
