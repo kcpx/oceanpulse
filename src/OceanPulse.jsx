@@ -269,7 +269,6 @@ export default function OceanPulse() {
   const [dataSource, setDataSource] = useState('loading');
   const [lastFredFetch, setLastFredFetch] = useState(null);
   const [history, setHistory] = useState([]);
-  const [densityMode, setDensityMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [portWeather, setPortWeather] = useState({});
   const [showRoutes, setShowRoutes] = useState(false);
@@ -425,30 +424,6 @@ export default function OceanPulse() {
              v.flag.toLowerCase().includes(query) ||
              v.cargo.toLowerCase().includes(query);
     });
-
-  // Density heatmap calculation
-  const densityContours = useCallback(() => {
-    if (!densityMode || filtered.length === 0) return [];
-
-    // Convert vessel positions to pixel coordinates
-    const points = filtered.map(v => {
-      const [x, y] = pt(v.lng, v.lat);
-      return [x, y];
-    }).filter(([x, y]) => x >= 0 && x <= dims.w && y >= 0 && y <= dims.h);
-
-    if (points.length === 0) return [];
-
-    // Create density data using D3 contour density
-    const density = d3.contourDensity()
-      .x(d => d[0])
-      .y(d => d[1])
-      .size([dims.w, dims.h])
-      .bandwidth(30)
-      .thresholds(15)
-      (points);
-
-    return density;
-  }, [densityMode, filtered, pt, dims]);
 
   // Alert Detection System
   const alerts = useMemo(() => {
@@ -700,16 +675,6 @@ export default function OceanPulse() {
 
       {/* FILTER BAR */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "12px 24px", borderBottom: "1px solid #dee2e6", background: "#f1f3f5", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 12, color: "#64748b", letterSpacing: 2 }}>VIEW MODE</span>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={() => setDensityMode(false)} style={{ padding: "6px 16px", fontSize: 12, borderRadius: 4, border: `1px solid ${!densityMode ? "#0284c7" : "#cbd5e1"}`, background: !densityMode ? "rgba(2,132,199,0.1)" : "#ffffff", color: !densityMode ? "#0284c7" : "#64748b", cursor: "pointer", letterSpacing: 0.5, transition: "all 0.2s", fontWeight: 600 }}>
-            🚢 VESSELS
-          </button>
-          <button onClick={() => setDensityMode(true)} style={{ padding: "6px 16px", fontSize: 12, borderRadius: 4, border: `1px solid ${densityMode ? "#0284c7" : "#cbd5e1"}`, background: densityMode ? "rgba(2,132,199,0.1)" : "#ffffff", color: densityMode ? "#0284c7" : "#64748b", cursor: "pointer", letterSpacing: 0.5, transition: "all 0.2s", fontWeight: 600 }}>
-            🔥 DENSITY
-          </button>
-        </div>
-        <div style={{ width: 1, height: 24, background: "#cbd5e1", margin: "0 8px" }} />
         <span style={{ fontSize: 12, color: "#64748b", letterSpacing: 2 }}>VESSEL TYPE</span>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {["All", ...VESSEL_TYPES].map(t => (
@@ -818,7 +783,6 @@ export default function OceanPulse() {
                 setSearchQuery("");
                 setFilter("All");
                 setSelPort(null);
-                setDensityMode(false);
               }}
               style={{
                 padding: "4px 12px",
@@ -892,17 +856,8 @@ export default function OceanPulse() {
               <stop offset="0%" stopColor="#dc2626" stopOpacity="0.2" />
               <stop offset="100%" stopColor="#dc2626" stopOpacity="0" />
             </radialGradient>
-            <linearGradient id="densityGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.8" />
-              <stop offset="50%" stopColor="#06b6d4" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#22d3ee" stopOpacity="0.2" />
-            </linearGradient>
             <filter id="glow">
               <feGaussianBlur stdDeviation="2.5" result="b" />
-              <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-            <filter id="densityGlow">
-              <feGaussianBlur stdDeviation="8" result="b" />
               <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
             </filter>
           </defs>
@@ -932,22 +887,6 @@ export default function OceanPulse() {
             return <circle key={i} cx={x} cy={y} r={20 + p.congestion * 0.3} fill="url(#portHalo)" opacity={0.4 + p.congestion / 220} />;
           })}
 
-          {/* Density Heatmap */}
-          {densityMode && densityContours().map((contour, i) => {
-            const colorScale = d3.scaleSequential(d3.interpolateCool).domain([0, d3.max(densityContours(), d => d.value) || 1]);
-            const color = colorScale(contour.value);
-            return (
-              <path
-                key={i}
-                d={d3.geoPath()(contour)}
-                fill={color}
-                fillOpacity={0.4 + (contour.value / (d3.max(densityContours(), d => d.value) || 1)) * 0.5}
-                stroke="none"
-                filter="url(#densityGlow)"
-              />
-            );
-          })}
-
           {riskMode && CHOKEPOINTS.map((cp, i) => {
             const [x, y] = pt(cp.coords[0], cp.coords[1]);
             return (
@@ -961,7 +900,7 @@ export default function OceanPulse() {
             );
           })}
 
-          {!densityMode && filtered.map(v => {
+          {filtered.map(v => {
             const [x, y] = pt(v.lng, v.lat);
             if (x < -5 || x > dims.w + 5 || y < -5 || y > dims.h + 5) return null;
             const color = VESSEL_COLORS[v.type] || "#38bdf8";
@@ -1075,23 +1014,12 @@ export default function OceanPulse() {
 
           <g transform={`translate(14, ${dims.h - 195})`}>
             <rect x={0} y={0} width={210} height={185} rx={6} fill="#ffffff" stroke="#94a3b8" strokeWidth={1.5} opacity={0.98} />
-            <text x={12} y={20} fill="#0369a1" fontSize={12} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1.5}>{densityMode ? "🔥" : "📍"} LEGEND</text>
+            <text x={12} y={20} fill="#0369a1" fontSize={12} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1.5}>📍 LEGEND</text>
             <line x1={12} y1={24} x2={198} y2={24} stroke="#cbd5e1" strokeWidth={1} />
 
-            {/* Density Mode Info */}
-            {densityMode && (
-              <g>
-                <text x={12} y={40} fill="#0ea5e9" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">Density Heatmap:</text>
-                <text x={12} y={56} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Blue areas show</text>
-                <text x={12} y={70} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">vessel concentration</text>
-                <text x={12} y={84} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Brighter = Higher</text>
-                <text x={12} y={96} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">density</text>
-              </g>
-            )}
-
             {/* Vessel Types */}
-            {!densityMode && <text x={12} y={40} fill="#64748b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">Vessel Types:</text>}
-            {!densityMode && Object.entries(VESSEL_COLORS).map(([type, color], i) => (
+            <text x={12} y={40} fill="#64748b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">Vessel Types:</text>
+            {Object.entries(VESSEL_COLORS).map(([type, color], i) => (
               <g key={i} transform={`translate(12, ${48 + i * 16})`}>
                 <circle cx={6} cy={6} r={5} fill={color} stroke="#ffffff" strokeWidth={1.5} />
                 <text x={20} y={11} fill="#1e293b" fontSize={11} fontWeight={500} fontFamily="IBM Plex Mono,monospace">{type}</text>
@@ -1099,17 +1027,17 @@ export default function OceanPulse() {
             ))}
 
             {/* Port Congestion */}
-            <line x1={12} y1={densityMode ? 110 : 136} x2={198} y2={densityMode ? 110 : 136} stroke="#e5e7eb" strokeWidth={1} />
-            <text x={12} y={densityMode ? 124 : 150} fill="#64748b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">Port Congestion:</text>
-            <g transform={`translate(12, ${densityMode ? 132 : 158})`}>
+            <line x1={12} y1={136} x2={198} y2={136} stroke="#e5e7eb" strokeWidth={1} />
+            <text x={12} y={150} fill="#64748b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">Port Congestion:</text>
+            <g transform="translate(12, 158)">
               <circle cx={6} cy={6} r={5} fill="none" stroke="#16a34a" strokeWidth={2} />
               <text x={20} y={11} fill="#1e293b" fontSize={10} fontWeight={500} fontFamily="IBM Plex Mono,monospace">Low (0-49)</text>
             </g>
-            <g transform={`translate(105, ${densityMode ? 132 : 158})`}>
+            <g transform="translate(105, 158)">
               <circle cx={6} cy={6} r={5} fill="none" stroke="#ea580c" strokeWidth={2} />
               <text x={20} y={11} fill="#1e293b" fontSize={10} fontWeight={500} fontFamily="IBM Plex Mono,monospace">Med (50-69)</text>
             </g>
-            <g transform={`translate(12, ${densityMode ? 148 : 174})`}>
+            <g transform="translate(12, 174)">
               <circle cx={6} cy={6} r={5} fill="none" stroke="#dc2626" strokeWidth={2} />
               <text x={20} y={11} fill="#1e293b" fontSize={10} fontWeight={500} fontFamily="IBM Plex Mono,monospace">High (70+)</text>
             </g>
