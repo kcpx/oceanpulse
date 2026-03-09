@@ -263,6 +263,7 @@ export default function OceanPulse() {
   const [selVessel, setSelVessel] = useState(null);
   const [selPort, setSelPort] = useState(null);
   const [selRoute, setSelRoute] = useState(null);
+  const [lastSelected, setLastSelected] = useState(null); // Track z-index for overlapping cards
   const [freightModal, setFreightModal] = useState(false);
   const [tickerPos, setTickerPos] = useState(0);
   const [freight, setFreight] = useState({ bdi: 1842, fbx: 3920, crude: 82.14, bdic: 2.1, fbxc: 4.8, crudec: -1.2 });
@@ -414,17 +415,20 @@ export default function OceanPulse() {
   }, [proj]);
   const pathFn = useCallback(() => d3.geoPath().projection(proj()), [proj]);
 
-  // Combined filtering: vessel type + search
-  const filtered = vessels
-    .filter(v => filter === "All" || v.type === filter)
-    .filter(v => {
-      if (!searchQuery.trim()) return true;
-      const query = searchQuery.toLowerCase();
-      return v.name.toLowerCase().includes(query) ||
-             v.route.name.toLowerCase().includes(query) ||
-             v.flag.toLowerCase().includes(query) ||
-             v.cargo.toLowerCase().includes(query);
-    });
+  // Combined filtering: vessel type + search (memoized for performance)
+  const filtered = useMemo(() =>
+    vessels
+      .filter(v => filter === "All" || v.type === filter)
+      .filter(v => {
+        if (!searchQuery.trim()) return true;
+        const query = searchQuery.toLowerCase();
+        return v?.name?.toLowerCase().includes(query) ||
+               v?.route?.name?.toLowerCase().includes(query) ||
+               v?.flag?.toLowerCase().includes(query) ||
+               v?.cargo?.toLowerCase().includes(query);
+      }),
+    [vessels, filter, searchQuery]
+  );
 
   // Alert Detection System
   const alerts = useMemo(() => {
@@ -537,8 +541,20 @@ export default function OceanPulse() {
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(1.5)} }
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+        @keyframes spinner { to { transform: rotate(360deg); } }
+        @keyframes cardFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .info-card { animation: cardFadeIn 0.2s ease-out; }
         * { box-sizing:border-box; margin:0; padding:0; }
       `}</style>
+
+      {/* LOADING OVERLAY - Only show on initial load */}
+      {dataSource === 'loading' && history.length === 0 && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.95)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
+          <div style={{ width: 48, height: 48, border: '4px solid rgba(14,165,233,0.2)', borderTop: '4px solid #0ea5e9', borderRadius: '50%', animation: 'spinner 0.8s linear infinite' }} />
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#0ea5e9', letterSpacing: 2 }}>OCEANPULSE</div>
+          <div style={{ fontSize: 12, color: '#64748b', letterSpacing: 1 }}>Loading maritime intelligence...</div>
+        </div>
+      )}
 
       {/* TICKER */}
       <div style={{ background: "#ffffff", borderBottom: "1px solid #dee2e6", height: 36, overflow: "hidden", display: "flex", alignItems: "center" }}>
@@ -882,7 +898,7 @@ export default function OceanPulse() {
             const [x2, y2] = pt(r.to[0], r.to[1]);
             const isSelected = selRoute?.name === r.name;
             return (
-              <g key={i} style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setSelRoute(isSelected ? null : r); }}>
+              <g key={i} style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setSelRoute(isSelected ? null : r); if (!isSelected) setLastSelected('route'); }}>
                 {/* Invisible hitbox for easier clicking */}
                 <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={12} />
                 {/* Visible route line */}
@@ -931,12 +947,21 @@ export default function OceanPulse() {
             const radius = sel ? 7 : isHighlighted ? 4.5 : 2.5;
             const opacity = sel ? 1 : isHighlighted ? 1 : 0.82;
             return (
-              <g key={v.id} onClick={() => setSelVessel(sel ? null : v)} style={{ cursor: "pointer" }}>
+              <g key={v.id} onClick={() => { setSelVessel(sel ? null : v); if (!sel) setLastSelected('vessel'); }} style={{ cursor: "pointer" }}>
                 {(sel || isHighlighted) && <circle cx={x} cy={y} r={16} fill={color} opacity={0.12} />}
                 <circle cx={x} cy={y} r={radius} fill={color} opacity={opacity} filter={sel || isHighlighted ? "url(#glow)" : undefined} stroke={sel || isHighlighted ? "#fff" : "none"} strokeWidth={1.5} />
               </g>
             );
           })}
+
+          {/* No results message */}
+          {searchQuery.trim() && filtered.length === 0 && (
+            <g>
+              <rect x={dims.w / 2 - 150} y={dims.h / 2 - 40} width={300} height={80} rx={8} fill="#ffffff" opacity={0.95} stroke="#cbd5e1" strokeWidth={2} />
+              <text x={dims.w / 2} y={dims.h / 2 - 10} fill="#64748b" fontSize={14} fontWeight={600} textAnchor="middle" fontFamily="IBM Plex Mono,monospace">No vessels found</text>
+              <text x={dims.w / 2} y={dims.h / 2 + 15} fill="#94a3b8" fontSize={11} textAnchor="middle" fontFamily="IBM Plex Mono,monospace">Try searching for a different name, route, or flag</text>
+            </g>
+          )}
 
           {PORTS.map((p, i) => {
             const [x, y] = pt(p.coords[0], p.coords[1]);
@@ -946,7 +971,7 @@ export default function OceanPulse() {
             const weatherIcon = weather ? getWeatherEmoji(weather.condition) : "";
             const hasStorm = weather && (weather.condition.toLowerCase().includes("storm") || weather.windSpeed > 35);
             return (
-              <g key={i} onClick={() => setSelPort(sel ? null : p)} style={{ cursor: "pointer" }}>
+              <g key={i} onClick={() => { setSelPort(sel ? null : p); if (!sel) setLastSelected('port'); }} style={{ cursor: "pointer" }}>
                 {sel && <circle cx={x} cy={y} r={16} fill={color} opacity={0.12} />}
                 {hasStorm && <circle cx={x} cy={y} r={28} fill="#dc2626" opacity={0.15} className="storm-pulse" />}
                 <circle cx={x} cy={y} r={sel ? 9 : 6.5} fill="none" stroke={color} strokeWidth={sel ? 2.5 : 2} filter={sel ? "url(#glow)" : undefined} />
@@ -968,19 +993,45 @@ export default function OceanPulse() {
           })}
 
           {selVessel && (() => {
+            // Null check
+            if (!selVessel || selVessel.lng === undefined || selVessel.lat === undefined) return null;
+
             const [vx, vy] = pt(selVessel.lng, selVessel.lat);
             const cardWidth = 300;
             const cardHeight = 260;
-            const bx = Math.min(Math.max(vx + 18, 5), dims.w - cardWidth - 5);
-            const by = Math.min(Math.max(vy - 80, 5), dims.h - cardHeight - 5);
+            // Smart positioning - avoid other cards
+            let bx = Math.min(Math.max(vx + 18, 5), dims.w - cardWidth - 5);
+            let by = Math.min(Math.max(vy - 80, 5), dims.h - cardHeight - 5);
+
+            // If port card is active, offset vessel card to avoid overlap
+            if (selPort && selPort.coords) {
+              const [px, py] = pt(selPort.coords[0], selPort.coords[1]);
+              const portCardX = Math.min(Math.max(px + 18, 5), dims.w - 230);
+              const portCardY = Math.min(Math.max(py - 80, 5), dims.h - 240 - 10);
+              // Check if cards would overlap
+              if (Math.abs(bx - portCardX) < 320 && Math.abs(by - portCardY) < 280) {
+                // Move vessel card to left side
+                bx = Math.max(5, dims.w / 2 - cardWidth - 10);
+              }
+            }
+
+            // If route card is active, avoid it too
+            if (selRoute) {
+              const routeCardX = Math.max(dims.w - 300 - 20, 20);
+              if (Math.abs(bx - routeCardX) < 320) {
+                // Move to opposite side
+                bx = Math.min(20, dims.w / 2 - cardWidth);
+              }
+            }
+
             const color = VESSEL_COLORS[selVessel.type] || "#0284c7";
 
-            // Calculate risk score (0-100)
-            const destPort = PORTS.find(p => selVessel.route.name.includes(p.name));
-            const destCongestion = destPort ? destPort.congestion : 50;
-            const destWeather = destPort ? portWeather[destPort.name] : null;
-            const speedAnomaly = Math.abs(selVessel.speed - 18) / 18; // Normal speed ~18kn
-            const weatherRisk = destWeather && destWeather.windSpeed > 30 ? 30 : 0;
+            // Calculate risk score (0-100) with null safety
+            const destPort = selVessel.route?.name ? PORTS.find(p => selVessel.route.name.includes(p.name)) : null;
+            const destCongestion = destPort?.congestion ?? 50;
+            const destWeather = destPort?.name ? portWeather[destPort.name] : null;
+            const speedAnomaly = selVessel.speed ? Math.abs(parseFloat(selVessel.speed) - 18) / 18 : 0;
+            const weatherRisk = destWeather?.windSpeed && destWeather.windSpeed > 30 ? 30 : 0;
             const congestionRisk = destCongestion * 0.3;
             const speedRisk = speedAnomaly * 20;
             const riskScore = Math.min(100, Math.round(weatherRisk + congestionRisk + speedRisk));
@@ -998,11 +1049,13 @@ export default function OceanPulse() {
             const etaString = etaDays > 0 ? `${etaDays}d ${etaRemainder}h` : `${etaRemainder}h`;
             const etaConfidence = routeProgress > 50 ? "HIGH" : "MEDIUM";
 
-            // Related vessels on same route
-            const relatedVessels = vessels.filter(v => v.route.name === selVessel.route.name && v.id !== selVessel.id).length;
+            // Related vessels on same route (null safety)
+            const relatedVessels = selVessel.route?.name
+              ? vessels.filter(v => v?.route?.name === selVessel.route.name && v.id !== selVessel.id).length
+              : 0;
 
             return (
-              <g>
+              <g className="info-card">
                 <line x1={vx} y1={vy} x2={bx + 2} y2={by + 130} stroke={color} strokeWidth={1.2} opacity={0.5} strokeDasharray="4,5" />
                 <rect x={bx} y={by} width={cardWidth} height={cardHeight} rx={6} fill="#ffffff" stroke={color} strokeWidth={2} opacity={0.98} filter="url(#glow)" />
 
@@ -1077,15 +1130,18 @@ export default function OceanPulse() {
           })()}
 
           {selPort && (() => {
+            // Null check
+            if (!selPort || !selPort.coords || selPort.coords.length < 2) return null;
+
             const [px, py] = pt(selPort.coords[0], selPort.coords[1]);
-            const weather = portWeather[selPort.name];
+            const weather = selPort.name ? portWeather[selPort.name] : null;
             const hasWeather = weather && weather.temp !== undefined;
             const popupHeight = hasWeather ? 240 : 180;
             const bx = Math.min(Math.max(px + 18, 5), dims.w - 230);
             const by = Math.min(Math.max(py - 80, 5), dims.h - popupHeight - 10);
-            const color = congColor(selPort.congestion);
+            const color = congColor(selPort.congestion ?? 50);
             return (
-              <g>
+              <g className="info-card">
                 <line x1={px} y1={py} x2={bx + 2} y2={by + 95} stroke={color} strokeWidth={1.2} opacity={0.5} strokeDasharray="4,5" />
                 <rect x={bx} y={by} width={220} height={popupHeight} rx={5} fill="#ffffff" stroke={color} strokeWidth={1.5} opacity={0.98} />
                 <rect x={bx} y={by} width={220} height={24} rx={5} fill={color} opacity={0.12} />
@@ -1116,10 +1172,16 @@ export default function OceanPulse() {
           })()}
 
           {selRoute && (() => {
+            // Null check
+            if (!selRoute || !selRoute.from || !selRoute.to || !selRoute.name) return null;
+            if (selRoute.from.length < 2 || selRoute.to.length < 2) return null;
+
             // Calculate route statistics
-            const routeVessels = vessels.filter(v => v.route.name === selRoute.name);
+            const routeVessels = vessels.filter(v => v?.route?.name === selRoute.name);
             const vesselCount = routeVessels.length;
-            const avgSpeed = vesselCount > 0 ? Math.round(routeVessels.reduce((sum, v) => sum + v.speed, 0) / vesselCount) : 0;
+            const avgSpeed = vesselCount > 0
+              ? Math.round(routeVessels.reduce((sum, v) => sum + (parseFloat(v.speed) || 0), 0) / vesselCount)
+              : 0;
 
             // Calculate approximate distance (haversine formula simplified)
             const toRad = deg => deg * Math.PI / 180;
@@ -1159,7 +1221,7 @@ export default function OceanPulse() {
             const by = Math.max((dims.h - cardHeight) / 2, 20);
 
             return (
-              <g>
+              <g className="info-card">
                 <rect x={bx} y={by} width={cardWidth} height={cardHeight} rx={6} fill="#ffffff" stroke="#0ea5e9" strokeWidth={2} opacity={0.98} filter="url(#glow)" />
 
                 {/* Header */}
@@ -1346,7 +1408,7 @@ export default function OceanPulse() {
             {[...PORTS].sort((a, b) => b.congestion - a.congestion).map((port, i) => {
               const sel = selPort?.name === port.name;
               return (
-                <div key={i} onClick={() => setSelPort(sel ? null : port)} style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "8px 12px", borderRadius: 4, background: sel ? "#f1f5f9" : "#f8fafc", border: `1px solid ${sel ? congColor(port.congestion) : "#e2e8f0"}`, transition: "all 0.2s" }}>
+                <div key={i} onClick={() => { setSelPort(sel ? null : port); if (!sel) setLastSelected('port'); }} style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", padding: "8px 12px", borderRadius: 4, background: sel ? "#f1f5f9" : "#f8fafc", border: `1px solid ${sel ? congColor(port.congestion) : "#e2e8f0"}`, transition: "all 0.2s" }}>
                   <span style={{ fontSize: 11.5, color: "#475569", width: 100, letterSpacing: 0.5, flexShrink: 0 }}>{port.name.toUpperCase()}</span>
                   <div style={{ flex: 1, height: 5, background: "#e2e8f0", borderRadius: 2.5 }}>
                     <div style={{ width: `${port.congestion}%`, height: "100%", background: congColor(port.congestion), borderRadius: 2.5, transition: "width 0.5s" }} />
