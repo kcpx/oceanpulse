@@ -953,22 +953,109 @@ export default function OceanPulse() {
 
           {selVessel && (() => {
             const [vx, vy] = pt(selVessel.lng, selVessel.lat);
-            const bx = Math.min(Math.max(vx + 18, 5), dims.w - 210);
-            const by = Math.min(Math.max(vy - 80, 5), dims.h - 165);
+            const cardWidth = 300;
+            const cardHeight = 260;
+            const bx = Math.min(Math.max(vx + 18, 5), dims.w - cardWidth - 5);
+            const by = Math.min(Math.max(vy - 80, 5), dims.h - cardHeight - 5);
             const color = VESSEL_COLORS[selVessel.type] || "#0284c7";
+
+            // Calculate risk score (0-100)
+            const destPort = PORTS.find(p => selVessel.route.name.includes(p.name));
+            const destCongestion = destPort ? destPort.congestion : 50;
+            const destWeather = destPort ? portWeather[destPort.name] : null;
+            const speedAnomaly = Math.abs(selVessel.speed - 18) / 18; // Normal speed ~18kn
+            const weatherRisk = destWeather && destWeather.windSpeed > 30 ? 30 : 0;
+            const congestionRisk = destCongestion * 0.3;
+            const speedRisk = speedAnomaly * 20;
+            const riskScore = Math.min(100, Math.round(weatherRisk + congestionRisk + speedRisk));
+            const riskLevel = riskScore >= 70 ? "HIGH" : riskScore >= 40 ? "MEDIUM" : "LOW";
+            const riskColor = riskScore >= 70 ? "#dc2626" : riskScore >= 40 ? "#f59e0b" : "#22c55e";
+
+            // Calculate route progress (simulated based on vessel position)
+            const routeProgress = Math.round((selVessel.lng + 180) % 100);
+
+            // Calculate ETA (simulated - distance / speed)
+            const distRemaining = Math.round(((100 - routeProgress) / 100) * 5000); // km
+            const etaHours = Math.round(distRemaining / (selVessel.speed * 1.852)); // kn to km/h
+            const etaDays = Math.floor(etaHours / 24);
+            const etaRemainder = etaHours % 24;
+            const etaString = etaDays > 0 ? `${etaDays}d ${etaRemainder}h` : `${etaRemainder}h`;
+            const etaConfidence = routeProgress > 50 ? "HIGH" : "MEDIUM";
+
+            // Related vessels on same route
+            const relatedVessels = vessels.filter(v => v.route.name === selVessel.route.name && v.id !== selVessel.id).length;
+
             return (
               <g>
-                <line x1={vx} y1={vy} x2={bx + 2} y2={by + 80} stroke={color} strokeWidth={1.2} opacity={0.5} strokeDasharray="4,5" />
-                <rect x={bx} y={by} width={204} height={158} rx={5} fill="#ffffff" stroke={color} strokeWidth={1.5} opacity={0.98} />
-                <rect x={bx} y={by} width={204} height={24} rx={5} fill={color} opacity={0.12} />
-                <text x={bx + 10} y={by + 17} fill={color} fontSize={12} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>{selVessel.name}</text>
-                <text x={bx + 180} y={by + 17} fill="#64748b" fontSize={13} style={{ cursor: "pointer" }} fontFamily="IBM Plex Mono,monospace" onClick={() => setSelVessel(null)}>✕</text>
-                {[["TYPE", selVessel.type], ["FLAG", selVessel.flag], ["ROUTE", selVessel.route.name], ["CARGO", selVessel.cargo], ["SPEED", selVessel.speed + " kn"]].map(([k, val], ki) => (
-                  <g key={ki}>
-                    <text x={bx + 10} y={by + 42 + ki * 22} fill="#64748b" fontSize={10} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>{k}</text>
-                    <text x={bx + 68} y={by + 42 + ki * 22} fill="#1e293b" fontSize={10} fontFamily="IBM Plex Mono,monospace">{val}</text>
+                <line x1={vx} y1={vy} x2={bx + 2} y2={by + 130} stroke={color} strokeWidth={1.2} opacity={0.5} strokeDasharray="4,5" />
+                <rect x={bx} y={by} width={cardWidth} height={cardHeight} rx={6} fill="#ffffff" stroke={color} strokeWidth={2} opacity={0.98} filter="url(#glow)" />
+
+                {/* Header */}
+                <rect x={bx} y={by} width={cardWidth} height={28} rx={6} fill={color} opacity={0.15} />
+                <text x={bx + 12} y={by + 19} fill={color} fontSize={13} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>{selVessel.name}</text>
+                <text x={bx + cardWidth - 20} y={by + 19} fill="#64748b" fontSize={14} style={{ cursor: "pointer" }} fontFamily="IBM Plex Mono,monospace" onClick={() => setSelVessel(null)}>✕</text>
+
+                {/* Risk Badge */}
+                <rect x={bx + 12} y={by + 38} width={80} height={22} rx={4} fill={riskColor} opacity={0.15} stroke={riskColor} strokeWidth={1} />
+                <text x={bx + 18} y={by + 52} fill={riskColor} fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>RISK: {riskLevel}</text>
+                <text x={bx + 100} y={by + 52} fill={riskColor} fontSize={14} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{riskScore}</text>
+
+                {/* Basic Info */}
+                <text x={bx + 12} y={by + 78} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>TYPE</text>
+                <text x={bx + 80} y={by + 78} fill="#1e293b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">{selVessel.type}</text>
+
+                <text x={bx + 180} y={by + 78} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>FLAG</text>
+                <text x={bx + 220} y={by + 78} fill="#1e293b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">{selVessel.flag}</text>
+
+                <text x={bx + 12} y={by + 96} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>CARGO</text>
+                <text x={bx + 80} y={by + 96} fill="#1e293b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">{selVessel.cargo}</text>
+
+                <text x={bx + 180} y={by + 96} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>SPEED</text>
+                <text x={bx + 220} y={by + 96} fill="#1e293b" fontSize={10} fontWeight={600} fontFamily="IBM Plex Mono,monospace">{selVessel.speed} kn</text>
+
+                {/* Divider */}
+                <line x1={bx + 12} y1={by + 108} x2={bx + cardWidth - 12} y2={by + 108} stroke="#e5e7eb" strokeWidth={1} />
+
+                {/* Route Analytics */}
+                <text x={bx + 12} y={by + 124} fill="#0369a1" fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>ROUTE: {selVessel.route.name}</text>
+
+                {/* Progress Bar */}
+                <rect x={bx + 12} y={by + 132} width={cardWidth - 24} height={8} rx={4} fill="#e5e7eb" />
+                <rect x={bx + 12} y={by + 132} width={(cardWidth - 24) * (routeProgress / 100)} height={8} rx={4} fill={color} />
+                <text x={bx + 12} y={by + 152} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Progress: {routeProgress}%</text>
+                <text x={bx + 120} y={by + 152} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Distance: {distRemaining} km</text>
+
+                {/* ETA */}
+                <rect x={bx + 12} y={by + 162} width={130} height={28} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                <text x={bx + 18} y={by + 174} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>ETA</text>
+                <text x={bx + 18} y={by + 186} fill="#0f172a" fontSize={12} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{etaString}</text>
+                <text x={bx + 90} y={by + 186} fill={etaConfidence === "HIGH" ? "#22c55e" : "#f59e0b"} fontSize={8} fontFamily="IBM Plex Mono,monospace">{etaConfidence}</text>
+
+                {/* Related Vessels */}
+                <rect x={bx + 150} y={by + 162} width={cardWidth - 162} height={28} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                <text x={bx + 156} y={by + 174} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>ON ROUTE</text>
+                <text x={bx + 156} y={by + 186} fill="#0f172a" fontSize={12} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{relatedVessels} vessels</text>
+
+                {/* Status Indicators */}
+                <text x={bx + 12} y={by + 210} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>STATUS</text>
+                {destWeather && destWeather.windSpeed > 25 && (
+                  <g>
+                    <circle cx={bx + 18} cy={by + 220} r={4} fill="#f59e0b" />
+                    <text x={bx + 26} y={by + 224} fill="#f59e0b" fontSize={9} fontFamily="IBM Plex Mono,monospace">⛈️ Weather Alert</text>
                   </g>
-                ))}
+                )}
+                {destCongestion >= 70 && (
+                  <g>
+                    <circle cx={bx + 160} cy={by + 220} r={4} fill="#dc2626" />
+                    <text x={bx + 168} y={by + 224} fill="#dc2626" fontSize={9} fontFamily="IBM Plex Mono,monospace">🚦 Port Congestion</text>
+                  </g>
+                )}
+                {!destWeather || destWeather.windSpeed <= 25 && destCongestion < 70 && (
+                  <text x={bx + 18} y={by + 224} fill="#22c55e" fontSize={9} fontFamily="IBM Plex Mono,monospace">✓ On Schedule</text>
+                )}
+
+                {/* Footer */}
+                <text x={bx + 12} y={by + 248} fill="#94a3b8" fontSize={8} fontFamily="IBM Plex Mono,monospace">Real-time maritime intelligence • Click outside to close</text>
               </g>
             );
           })()}
