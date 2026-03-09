@@ -578,6 +578,78 @@ export default function OceanPulse() {
         </div>
       </div>
 
+      {/* COMMAND BAR */}
+      <div style={{ background: "#0f172a", borderBottom: "2px solid #1e293b", padding: "10px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
+        {/* Left: System Health */}
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", boxShadow: "0 0 8px #22c55e" }} />
+            <span style={{ fontSize: 11, color: "#22c55e", letterSpacing: 1, fontWeight: 600 }}>SYSTEMS NOMINAL</span>
+          </div>
+          <div style={{ width: 1, height: 20, background: "#334155" }} />
+          <div style={{ fontSize: 10, color: "#94a3b8", letterSpacing: 0.5 }}>
+            API: <span style={{ color: dataSource === 'fred' ? '#22c55e' : '#fbbf24' }}>{dataSource === 'fred' ? 'LIVE' : 'SIM'}</span>
+          </div>
+          <div style={{ fontSize: 10, color: "#94a3b8", letterSpacing: 0.5 }}>
+            GEO: <span style={{ color: worldGeo ? '#22c55e' : '#94a3b8' }}>{worldGeo ? 'LOADED' : 'LOADING'}</span>
+          </div>
+          <div style={{ fontSize: 10, color: "#94a3b8", letterSpacing: 0.5 }}>
+            WEATHER: <span style={{ color: Object.keys(portWeather).length > 0 ? '#22c55e' : '#94a3b8' }}>
+              {Object.keys(portWeather).length > 0 ? 'ACTIVE' : 'STANDBY'}
+            </span>
+          </div>
+        </div>
+
+        {/* Center: Key Metrics */}
+        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 18, color: "#0ea5e9", fontWeight: 700 }}>{vessels.length}</div>
+            <div style={{ fontSize: 9, color: "#64748b", letterSpacing: 1 }}>VESSELS</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 18, color: "#8b5cf6", fontWeight: 700 }}>{PORTS.length}</div>
+            <div style={{ fontSize: 9, color: "#64748b", letterSpacing: 1 }}>PORTS</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 18, color: "#f59e0b", fontWeight: 700 }}>{ROUTES.length}</div>
+            <div style={{ fontSize: 9, color: "#64748b", letterSpacing: 1 }}>ROUTES</div>
+          </div>
+          <div style={{ width: 1, height: 30, background: "#334155" }} />
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 18, color: alerts.length === 0 ? "#22c55e" : alerts.filter(a => a.severity === 'critical').length > 0 ? "#dc2626" : "#f59e0b", fontWeight: 700 }}>
+              {alerts.length}
+            </div>
+            <div style={{ fontSize: 9, color: "#64748b", letterSpacing: 1 }}>ALERTS</div>
+          </div>
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 18, color: "#ef4444", fontWeight: 700 }}>
+              {PORTS.filter(p => p.congestion >= 70).length}
+            </div>
+            <div style={{ fontSize: 9, color: "#64748b", letterSpacing: 1 }}>CRITICAL</div>
+          </div>
+        </div>
+
+        {/* Right: Quick Stats */}
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ fontSize: 10, color: "#94a3b8", textAlign: "right" }}>
+            <div style={{ color: "#cbd5e1", fontWeight: 600 }}>
+              AVG CONGESTION: <span style={{ color: PORTS.reduce((sum, p) => sum + p.congestion, 0) / PORTS.length >= 60 ? '#dc2626' : '#22c55e' }}>
+                {Math.round(PORTS.reduce((sum, p) => sum + p.congestion, 0) / PORTS.length)}%
+              </span>
+            </div>
+            <div style={{ marginTop: 2 }}>
+              WAITING VESSELS: <span style={{ color: "#f59e0b", fontWeight: 600 }}>
+                {PORTS.reduce((sum, p) => sum + p.waiting, 0)}
+              </span>
+            </div>
+          </div>
+          <div style={{ width: 1, height: 30, background: "#334155" }} />
+          <div style={{ fontSize: 10, color: "#cbd5e1", fontWeight: 600, background: "rgba(6,182,212,0.1)", padding: "6px 12px", borderRadius: 4, border: "1px solid #0891b2" }}>
+            ZOOM: {zoom.toFixed(1)}x
+          </div>
+        </div>
+      </div>
+
       {/* HEADER */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid #dee2e6", background: "#ffffff" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
