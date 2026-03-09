@@ -531,19 +531,29 @@ export default function OceanPulse() {
       // Find the port and select it
       const port = PORTS.find(p => p.coords[0] === alert.location[0] && p.coords[1] === alert.location[1]);
       if (port) {
-        setSelPort(port);
-        // Zoom to port location
-        const [x, y] = pt(port.coords[0], port.coords[1]);
+        // Clear selection first to ensure fresh state
+        setSelPort(null);
+
+        // Calculate position using base projection (zoom=1, pan=0)
+        const baseProj = d3.geoNaturalEarth1()
+          .scale(dims.w / 6.5)
+          .translate([dims.w / 2, dims.h / 2 + 10]);
+        const baseCoords = baseProj([port.coords[0], port.coords[1]]) || [0, 0];
+
         const targetZoom = 2;
         setZoom(targetZoom);
-        // Center on port
+
+        // Center on port using base coordinates
         setPan({
-          x: dims.w / 2 - x * targetZoom,
-          y: dims.h / 2 - y * targetZoom
+          x: dims.w / 2 - baseCoords[0] * targetZoom,
+          y: dims.h / 2 - baseCoords[1] * targetZoom
         });
+
+        // Set port selection after a brief delay to ensure state updates
+        setTimeout(() => setSelPort(port), 50);
       }
     }
-  }, [pt, dims]);
+  }, [dims]);
 
   return (
     <div style={{ background: "#f8f9fa", color: "#212529", fontFamily: "'IBM Plex Mono',monospace", minHeight: "100vh" }}>
@@ -730,20 +740,28 @@ export default function OceanPulse() {
               −
             </button>
             <button
-              onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
+              onClick={() => {
+                setZoom(1);
+                setPan({ x: 0, y: 0 });
+                setSearchQuery("");
+                setFilter("All");
+                setSelPort(null);
+                setDensityMode(false);
+              }}
               style={{
-                padding: "4px 10px",
+                padding: "4px 12px",
                 fontSize: 11,
                 borderRadius: 4,
                 border: "1px solid #cbd5e1",
                 background: "#ffffff",
                 color: "#64748b",
                 cursor: "pointer",
-                letterSpacing: 0.5
+                letterSpacing: 0.5,
+                fontWeight: 600
               }}
-              title="Reset view"
+              title="Reset view, zoom, and filters"
             >
-              ↺
+              ↺ RESET
             </button>
           </div>
           <div style={{ width: 1, height: 24, background: "#cbd5e1", margin: "0 8px" }} />
