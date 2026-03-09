@@ -1146,21 +1146,15 @@ export default function OceanPulse() {
               Math.abs(p.coords[1] - selRoute.to[1]) < 5
             );
 
-            const startCongestion = startPort ? startPort.congestion : 0;
-            const endCongestion = endPort ? endPort.congestion : 0;
-            const avgCongestion = Math.round((startCongestion + endCongestion) / 2);
+            const startCongestion = startPort ? startPort.congestion : null;
+            const endCongestion = endPort ? endPort.congestion : null;
+            const hasCongestionData = startCongestion !== null || endCongestion !== null;
+            const avgCongestion = hasCongestionData ? Math.round(((startCongestion || 0) + (endCongestion || 0)) / (startPort && endPort ? 2 : 1)) : null;
             const congestionColor = avgCongestion >= 70 ? "#dc2626" : avgCongestion >= 50 ? "#f59e0b" : "#22c55e";
 
-            // Calculate efficiency score (based on speed, congestion, vessel count)
-            const speedScore = (avgSpeed / 20) * 40; // Max 40 points
-            const congestionScore = ((100 - avgCongestion) / 100) * 40; // Max 40 points
-            const densityScore = Math.min((vesselCount / 30) * 20, 20); // Max 20 points
-            const efficiency = Math.round(speedScore + congestionScore + densityScore);
-            const efficiencyColor = efficiency >= 70 ? "#22c55e" : efficiency >= 50 ? "#f59e0b" : "#dc2626";
-
             // Position card in center-right
-            const cardWidth = 320;
-            const cardHeight = 280;
+            const cardWidth = 300;
+            const cardHeight = hasCongestionData ? 220 : 170;
             const bx = Math.max(dims.w - cardWidth - 20, 20);
             const by = Math.max((dims.h - cardHeight) / 2, 20);
 
@@ -1170,60 +1164,62 @@ export default function OceanPulse() {
 
                 {/* Header */}
                 <rect x={bx} y={by} width={cardWidth} height={32} rx={6} fill="#0ea5e9" opacity={0.15} />
-                <text x={bx + 12} y={by + 21} fill="#0ea5e9" fontSize={13} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>🚢 ROUTE INTELLIGENCE</text>
+                <text x={bx + 12} y={by + 21} fill="#0ea5e9" fontSize={13} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>🚢 ROUTE ANALYTICS</text>
                 <text x={bx + cardWidth - 20} y={by + 21} fill="#64748b" fontSize={14} style={{ cursor: "pointer" }} fontFamily="IBM Plex Mono,monospace" onClick={() => setSelRoute(null)}>✕</text>
 
                 {/* Route Name */}
-                <text x={bx + 12} y={by + 50} fill="#0f172a" fontSize={14} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{selRoute.name}</text>
-
-                {/* Efficiency Score */}
-                <rect x={bx + 12} y={by + 62} width={120} height={28} rx={4} fill={efficiencyColor} opacity={0.15} stroke={efficiencyColor} strokeWidth={1} />
-                <text x={bx + 18} y={by + 74} fill={efficiencyColor} fontSize={9} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>EFFICIENCY</text>
-                <text x={bx + 18} y={by + 86} fill={efficiencyColor} fontSize={18} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{efficiency}/100</text>
+                <text x={bx + 12} y={by + 52} fill="#0f172a" fontSize={15} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{selRoute.name}</text>
 
                 {/* Distance */}
-                <rect x={bx + 140} y={by + 62} width={cardWidth - 152} height={28} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
-                <text x={bx + 146} y={by + 74} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>DISTANCE</text>
-                <text x={bx + 146} y={by + 86} fill="#0f172a" fontSize={16} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{distance.toLocaleString()} km</text>
+                <rect x={bx + 12} y={by + 66} width={cardWidth - 24} height={32} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                <text x={bx + 18} y={by + 78} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>DISTANCE</text>
+                <text x={bx + 18} y={by + 92} fill="#0f172a" fontSize={18} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{distance.toLocaleString()} km</text>
 
                 {/* Divider */}
-                <line x1={bx + 12} y1={by + 102} x2={bx + cardWidth - 12} y2={by + 102} stroke="#e5e7eb" strokeWidth={1} />
+                <line x1={bx + 12} y1={by + 108} x2={bx + cardWidth - 12} y2={by + 108} stroke="#e5e7eb" strokeWidth={1} />
 
                 {/* Stats Grid */}
-                <text x={bx + 12} y={by + 120} fill="#0369a1" fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>ROUTE STATISTICS</text>
+                <text x={bx + 12} y={by + 124} fill="#0369a1" fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>ROUTE TRAFFIC</text>
 
                 {/* Vessels */}
-                <rect x={bx + 12} y={by + 130} width={94} height={48} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
-                <text x={bx + 18} y={by + 142} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>VESSELS</text>
-                <text x={bx + 18} y={by + 158} fill="#0f172a" fontSize={20} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{vesselCount}</text>
-                <text x={bx + 18} y={by + 172} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace">active</text>
+                <rect x={bx + 12} y={by + 132} width={86} height={44} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                <text x={bx + 18} y={by + 144} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>VESSELS</text>
+                <text x={bx + 18} y={by + 160} fill="#0f172a" fontSize={20} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{vesselCount}</text>
+                <text x={bx + 18} y={by + 171} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace">active</text>
 
-                {/* Avg Speed */}
-                <rect x={bx + 113} y={by + 130} width={94} height={48} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
-                <text x={bx + 119} y={by + 142} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>AVG SPEED</text>
-                <text x={bx + 119} y={by + 158} fill="#0f172a" fontSize={20} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{avgSpeed}</text>
-                <text x={bx + 119} y={by + 172} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace">knots</text>
+                {/* Avg Speed - only show if we have vessels */}
+                {vesselCount > 0 && (
+                  <>
+                    <rect x={bx + 107} y={by + 132} width={86} height={44} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                    <text x={bx + 113} y={by + 144} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>AVG SPEED</text>
+                    <text x={bx + 113} y={by + 160} fill="#0f172a" fontSize={20} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{avgSpeed}</text>
+                    <text x={bx + 113} y={by + 171} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace">knots</text>
+                  </>
+                )}
 
-                {/* Transit Time */}
-                <rect x={bx + 214} y={by + 130} width={94} height={48} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
-                <text x={bx + 220} y={by + 142} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>TRANSIT</text>
-                <text x={bx + 220} y={by + 158} fill="#0f172a" fontSize={20} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{transitDays}d</text>
-                <text x={bx + 220} y={by + 172} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace">{transitHours % 24}h</text>
+                {/* Transit Time - only show if we have speed */}
+                {avgSpeed > 0 && (
+                  <>
+                    <rect x={bx + 202} y={by + 132} width={86} height={44} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                    <text x={bx + 208} y={by + 144} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>EST. TRANSIT</text>
+                    <text x={bx + 208} y={by + 160} fill="#0f172a" fontSize={20} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{transitDays}d</text>
+                    <text x={bx + 208} y={by + 171} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace">{transitHours % 24}h</text>
+                  </>
+                )}
 
-                {/* Congestion Status */}
-                <rect x={bx + 12} y={by + 190} width={cardWidth - 24} height={42} rx={4} fill="rgba(100,116,139,0.05)" stroke="#e5e7eb" strokeWidth={1} />
-                <text x={bx + 18} y={by + 204} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>PORT CONGESTION</text>
-                <rect x={bx + 18} y={by + 210} width={cardWidth - 48} height={8} rx={4} fill="#e5e7eb" />
-                <rect x={bx + 18} y={by + 210} width={(cardWidth - 48) * (avgCongestion / 100)} height={8} rx={4} fill={congestionColor} />
-                <text x={bx + 18} y={by + 227} fill={congestionColor} fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{avgCongestion}% AVG</text>
-                {startPort && <text x={bx + 100} y={by + 227} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Start: {startCongestion}%</text>}
-                {endPort && <text x={bx + 200} y={by + 227} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">End: {endCongestion}%</text>}
-
-                {/* Comparison */}
-                <text x={bx + 12} y={by + 250} fill="#0369a1" fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>RANKING</text>
-                <text x={bx + 18} y={by + 265} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">
-                  {efficiency >= 70 ? "✓ High Efficiency Route" : efficiency >= 50 ? "⚠ Moderate Efficiency" : "⚠ Low Efficiency Route"}
-                </text>
+                {/* Congestion Status - only show if we have port data */}
+                {hasCongestionData && (
+                  <>
+                    <line x1={bx + 12} y1={by + 186} x2={bx + cardWidth - 12} y2={by + 186} stroke="#e5e7eb" strokeWidth={1} />
+                    <rect x={bx + 12} y={by + 194} width={cardWidth - 24} height={38} rx={4} fill="rgba(100,116,139,0.05)" stroke="#e5e7eb" strokeWidth={1} />
+                    <text x={bx + 18} y={by + 208} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>PORT CONGESTION</text>
+                    <rect x={bx + 18} y={by + 214} width={cardWidth - 48} height={6} rx={3} fill="#e5e7eb" />
+                    <rect x={bx + 18} y={by + 214} width={(cardWidth - 48) * (avgCongestion / 100)} height={6} rx={3} fill={congestionColor} />
+                    <text x={bx + 18} y={by + 228} fill={congestionColor} fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{avgCongestion}%</text>
+                    {startPort && <text x={bx + 80} y={by + 228} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Start: {startCongestion}%</text>}
+                    {endPort && <text x={bx + 180} y={by + 228} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">End: {endCongestion}%</text>}
+                  </>
+                )}
               </g>
             );
           })()}
