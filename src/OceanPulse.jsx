@@ -272,6 +272,11 @@ export default function OceanPulse() {
   const [densityMode, setDensityMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [portWeather, setPortWeather] = useState({});
+  const [showRoutes, setShowRoutes] = useState(false);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     const s = document.createElement("script");
@@ -399,8 +404,10 @@ export default function OceanPulse() {
   }, []);
 
   const proj = useCallback(() =>
-    d3.geoNaturalEarth1().scale(dims.w / 6.4).translate([dims.w / 2, dims.h / 2 + 10]),
-    [dims]
+    d3.geoNaturalEarth1()
+      .scale((dims.w / 6.4) * zoom)
+      .translate([dims.w / 2 + pan.x, dims.h / 2 + 10 + pan.y]),
+    [dims, zoom, pan]
   );
   const pt = useCallback((lng, lat) => {
     try { return proj()([lng, lat]) || [0, 0]; } catch { return [0, 0]; }
@@ -577,6 +584,74 @@ export default function OceanPulse() {
           )}
         </div>
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+          <button
+            onClick={() => setShowRoutes(r => !r)}
+            style={{
+              padding: "6px 12px",
+              fontSize: 11,
+              borderRadius: 4,
+              border: `1px solid ${showRoutes ? "#0284c7" : "#cbd5e1"}`,
+              background: showRoutes ? "rgba(2,132,199,0.1)" : "#ffffff",
+              color: showRoutes ? "#0284c7" : "#64748b",
+              cursor: "pointer",
+              letterSpacing: 0.5,
+              transition: "all 0.2s",
+              fontWeight: 600
+            }}
+          >
+            {showRoutes ? "HIDE" : "SHOW"} ROUTES
+          </button>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              onClick={() => setZoom(z => Math.min(4, z * 1.2))}
+              style={{
+                padding: "4px 10px",
+                fontSize: 14,
+                borderRadius: 4,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#64748b",
+                cursor: "pointer",
+                fontWeight: 700
+              }}
+              title="Zoom in"
+            >
+              +
+            </button>
+            <button
+              onClick={() => setZoom(z => Math.max(0.5, z * 0.8))}
+              style={{
+                padding: "4px 10px",
+                fontSize: 14,
+                borderRadius: 4,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#64748b",
+                cursor: "pointer",
+                fontWeight: 700
+              }}
+              title="Zoom out"
+            >
+              −
+            </button>
+            <button
+              onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}
+              style={{
+                padding: "4px 10px",
+                fontSize: 11,
+                borderRadius: 4,
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#64748b",
+                cursor: "pointer",
+                letterSpacing: 0.5
+              }}
+              title="Reset view"
+            >
+              ↺
+            </button>
+          </div>
+          <div style={{ width: 1, height: 24, background: "#cbd5e1", margin: "0 8px" }} />
           <span style={{ fontSize: 12, color: "#64748b", letterSpacing: 1 }}>RISK MODE</span>
           <div onClick={() => setRiskMode(r => !r)} style={{ width: 52, height: 26, borderRadius: 13, background: riskMode ? "rgba(220,38,38,0.1)" : "#e2e8f0", cursor: "pointer", position: "relative", border: `1px solid ${riskMode ? "#dc2626" : "#cbd5e1"}`, transition: "all 0.3s" }}>
             <div style={{ position: "absolute", top: 3, left: riskMode ? 27 : 3, width: 18, height: 18, borderRadius: "50%", background: riskMode ? "#dc2626" : "#94a3b8", transition: "all 0.3s", boxShadow: riskMode ? "0 0 8px #dc2626" : "none" }} />
@@ -592,7 +667,27 @@ export default function OceanPulse() {
             <div style={{ color: "#64748b", fontSize: 11, letterSpacing: 3 }}>LOADING MARITIME DATA...</div>
           </div>
         )}
-        <svg width={dims.w} height={dims.h} style={{ display: "block" }}>
+        <svg
+          width={dims.w}
+          height={dims.h}
+          style={{ display: "block", cursor: isDragging ? "grabbing" : "grab" }}
+          onWheel={(e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            setZoom(prev => Math.max(0.5, Math.min(4, prev * delta)));
+          }}
+          onMouseDown={(e) => {
+            setIsDragging(true);
+            setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+          }}
+          onMouseMove={(e) => {
+            if (isDragging) {
+              setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+            }
+          }}
+          onMouseUp={() => setIsDragging(false)}
+          onMouseLeave={() => setIsDragging(false)}
+        >
           <defs>
             <radialGradient id="oceanBg" cx="50%" cy="40%" r="70%">
               <stop offset="0%" stopColor="#bae6fd" />
@@ -635,7 +730,7 @@ export default function OceanPulse() {
             } catch { return null; }
           })}
 
-          {ROUTES.map((r, i) => {
+          {showRoutes && ROUTES.map((r, i) => {
             const [x1, y1] = pt(r.from[0], r.from[1]);
             const [x2, y2] = pt(r.to[0], r.to[1]);
             return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#64748b" strokeWidth={0.6} strokeOpacity={0.4} strokeDasharray="4,8" />;
@@ -687,7 +782,7 @@ export default function OceanPulse() {
               v.flag.toLowerCase().includes(query) ||
               v.cargo.toLowerCase().includes(query)
             );
-            const radius = sel ? 7 : isHighlighted ? 5 : 3.5;
+            const radius = sel ? 7 : isHighlighted ? 4.5 : 2.5;
             const opacity = sel ? 1 : isHighlighted ? 1 : 0.82;
             return (
               <g key={v.id} onClick={() => setSelVessel(sel ? null : v)} style={{ cursor: "pointer" }}>
@@ -710,13 +805,17 @@ export default function OceanPulse() {
                 {hasStorm && <circle cx={x} cy={y} r={28} fill="#dc2626" opacity={0.15} className="storm-pulse" />}
                 <circle cx={x} cy={y} r={sel ? 9 : 6.5} fill="none" stroke={color} strokeWidth={sel ? 2.5 : 2} filter={sel ? "url(#glow)" : undefined} />
                 <circle cx={x} cy={y} r={2.5} fill={color} />
-                <text x={x + 12} y={y + 4} fill="#4a6a8a" fontSize={11} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.3}>
-                  {p.name} {weatherIcon}
-                </text>
-                {weather && (
-                  <text x={x + 12} y={y + 16} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">
-                    {weather.temp}°C
-                  </text>
+                {(zoom > 1.2 || sel) && (
+                  <>
+                    <text x={x + 12} y={y + 4} fill="#4a6a8a" fontSize={11} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.3}>
+                      {p.name} {weatherIcon}
+                    </text>
+                    {weather && (
+                      <text x={x + 12} y={y + 16} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">
+                        {weather.temp}°C
+                      </text>
+                    )}
+                  </>
                 )}
               </g>
             );
