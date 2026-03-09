@@ -264,6 +264,8 @@ export default function OceanPulse() {
   const [selPort, setSelPort] = useState(null);
   const [selRoute, setSelRoute] = useState(null);
   const [lastSelected, setLastSelected] = useState(null); // Track z-index for overlapping cards
+  const [hoverVessel, setHoverVessel] = useState(null); // Track hovered vessel
+  const [hoverPort, setHoverPort] = useState(null); // Track hovered port
   const [freightModal, setFreightModal] = useState(false);
   const [tickerPos, setTickerPos] = useState(0);
   const [freight, setFreight] = useState({ bdi: 1842, fbx: 3920, crude: 82.14, bdic: 2.1, fbxc: 4.8, crudec: -1.2 });
@@ -406,7 +408,7 @@ export default function OceanPulse() {
 
   const proj = useCallback(() =>
     d3.geoNaturalEarth1()
-      .scale((dims.w / 6.4) * zoom)
+      .scale((dims.w / 5.8) * zoom) // Increased from 6.4 to 5.8 for 10% more zoom
       .translate([dims.w / 2 + pan.x, dims.h / 2 + 10 + pan.y]),
     [dims, zoom, pan]
   );
@@ -899,16 +901,17 @@ export default function OceanPulse() {
             const isSelected = selRoute?.name === r.name;
             return (
               <g key={i} style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setSelRoute(isSelected ? null : r); if (!isSelected) setLastSelected('route'); }}>
-                {/* Invisible hitbox for easier clicking */}
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={12} />
-                {/* Visible route line */}
+                {/* Invisible hitbox for easier clicking - increased to 16px */}
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={16} />
+                {/* Visible route line - thicker: 2.5px default, 4.5px selected */}
                 <line
                   x1={x1} y1={y1} x2={x2} y2={y2}
                   stroke={isSelected ? "#0ea5e9" : "#dc2626"}
-                  strokeWidth={isSelected ? 3 : 1.5}
-                  strokeOpacity={isSelected ? 1 : 0.8}
-                  strokeDasharray={isSelected ? "8,3" : "6,4"}
+                  strokeWidth={isSelected ? 4.5 : 2.5}
+                  strokeOpacity={isSelected ? 1 : 0.75}
+                  strokeDasharray={isSelected ? "10,4" : "8,5"}
                   filter={isSelected ? "url(#glow)" : undefined}
+                  style={{ transition: "all 0.2s ease" }}
                 />
               </g>
             );
@@ -916,18 +919,22 @@ export default function OceanPulse() {
 
           {PORTS.map((p, i) => {
             const [x, y] = pt(p.coords[0], p.coords[1]);
-            return <circle key={i} cx={x} cy={y} r={20 + p.congestion * 0.3} fill="url(#portHalo)" opacity={0.4 + p.congestion / 220} />;
+            // Bigger halo: base 25px (was 20), scale with congestion more visibly
+            return <circle key={i} cx={x} cy={y} r={25 + p.congestion * 0.4} fill="url(#portHalo)" opacity={0.45 + p.congestion / 200} />;
           })}
 
           {riskMode && CHOKEPOINTS.map((cp, i) => {
             const [x, y] = pt(cp.coords[0], cp.coords[1]);
             return (
               <g key={i}>
-                <circle cx={x} cy={y} r={52} fill="url(#riskHalo)" />
-                <circle cx={x} cy={y} r={16} fill="none" stroke={riskColor(cp.risk)} strokeWidth={2} strokeDasharray="3,3" opacity={0.8} filter="url(#glow)" />
-                <circle cx={x} cy={y} r={4} fill={riskColor(cp.risk)} opacity={0.9} filter="url(#glow)" />
-                <text x={x} y={y - 22} textAnchor="middle" fill={riskColor(cp.risk)} fontSize={9} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>{cp.name.toUpperCase()}</text>
-                <text x={x} y={y - 12} textAnchor="middle" fill={riskColor(cp.risk)} fontSize={8} fontFamily="IBM Plex Mono,monospace" opacity={0.75}>{cp.vessels} VESSELS</text>
+                {/* Bigger halo: 60px (was 52px) */}
+                <circle cx={x} cy={y} r={60} fill="url(#riskHalo)" />
+                {/* Bigger ring: 20px (was 16px), thicker stroke */}
+                <circle cx={x} cy={y} r={20} fill="none" stroke={riskColor(cp.risk)} strokeWidth={2.5} strokeDasharray="4,4" opacity={0.85} filter="url(#glow)" />
+                {/* Bigger center: 5px (was 4px) */}
+                <circle cx={x} cy={y} r={5} fill={riskColor(cp.risk)} opacity={0.9} filter="url(#glow)" />
+                <text x={x} y={y - 26} textAnchor="middle" fill={riskColor(cp.risk)} fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>{cp.name.toUpperCase()}</text>
+                <text x={x} y={y - 15} textAnchor="middle" fill={riskColor(cp.risk)} fontSize={9} fontFamily="IBM Plex Mono,monospace" opacity={0.8}>{cp.vessels} VESSELS</text>
               </g>
             );
           })}
@@ -937,19 +944,38 @@ export default function OceanPulse() {
             if (x < -5 || x > dims.w + 5 || y < -5 || y > dims.h + 5) return null;
             const color = VESSEL_COLORS[v.type] || "#38bdf8";
             const sel = selVessel?.id === v.id;
+            const isHovered = hoverVessel?.id === v.id;
             const query = searchQuery.toLowerCase();
             const isHighlighted = searchQuery.trim() && (
-              v.name.toLowerCase().includes(query) ||
-              v.route.name.toLowerCase().includes(query) ||
-              v.flag.toLowerCase().includes(query) ||
-              v.cargo.toLowerCase().includes(query)
+              v?.name?.toLowerCase().includes(query) ||
+              v?.route?.name?.toLowerCase().includes(query) ||
+              v?.flag?.toLowerCase().includes(query) ||
+              v?.cargo?.toLowerCase().includes(query)
             );
-            const radius = sel ? 7 : isHighlighted ? 4.5 : 2.5;
-            const opacity = sel ? 1 : isHighlighted ? 1 : 0.82;
+            // Bigger sizes: 3.5px default, 9px selected, 6.5px highlighted, 5px hover
+            const radius = sel ? 9 : isHighlighted ? 6.5 : isHovered ? 5 : 3.5;
+            const opacity = sel ? 1 : isHighlighted ? 1 : isHovered ? 1 : 0.85;
+            const showHalo = sel || isHighlighted || isHovered;
             return (
-              <g key={v.id} onClick={() => { setSelVessel(sel ? null : v); if (!sel) setLastSelected('vessel'); }} style={{ cursor: "pointer" }}>
-                {(sel || isHighlighted) && <circle cx={x} cy={y} r={16} fill={color} opacity={0.12} />}
-                <circle cx={x} cy={y} r={radius} fill={color} opacity={opacity} filter={sel || isHighlighted ? "url(#glow)" : undefined} stroke={sel || isHighlighted ? "#fff" : "none"} strokeWidth={1.5} />
+              <g
+                key={v.id}
+                onClick={() => { setSelVessel(sel ? null : v); if (!sel) setLastSelected('vessel'); }}
+                onMouseEnter={() => setHoverVessel(v)}
+                onMouseLeave={() => setHoverVessel(null)}
+                style={{ cursor: "pointer" }}
+              >
+                {showHalo && <circle cx={x} cy={y} r={18} fill={color} opacity={0.12} />}
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={radius}
+                  fill={color}
+                  opacity={opacity}
+                  filter={showHalo ? "url(#glow)" : undefined}
+                  stroke={showHalo ? "#fff" : "none"}
+                  strokeWidth={2}
+                  style={{ transition: "all 0.15s ease" }}
+                />
               </g>
             );
           })}
@@ -966,23 +992,44 @@ export default function OceanPulse() {
           {PORTS.map((p, i) => {
             const [x, y] = pt(p.coords[0], p.coords[1]);
             const sel = selPort?.name === p.name;
+            const isHovered = hoverPort?.name === p.name;
             const color = congColor(p.congestion);
             const weather = portWeather[p.name];
             const weatherIcon = weather ? getWeatherEmoji(weather.condition) : "";
             const hasStorm = weather && (weather.condition.toLowerCase().includes("storm") || weather.windSpeed > 35);
+            // Bigger sizes: 10px outer ring (was 6.5), 4px center (was 2.5), 12px when selected (was 9)
+            const outerRadius = sel ? 12 : isHovered ? 11 : 10;
+            const centerRadius = sel ? 5 : isHovered ? 4.5 : 4;
+            const strokeWidth = sel ? 3 : isHovered ? 2.5 : 2;
+            const showHalo = sel || isHovered;
             return (
-              <g key={i} onClick={() => { setSelPort(sel ? null : p); if (!sel) setLastSelected('port'); }} style={{ cursor: "pointer" }}>
-                {sel && <circle cx={x} cy={y} r={16} fill={color} opacity={0.12} />}
-                {hasStorm && <circle cx={x} cy={y} r={28} fill="#dc2626" opacity={0.15} className="storm-pulse" />}
-                <circle cx={x} cy={y} r={sel ? 9 : 6.5} fill="none" stroke={color} strokeWidth={sel ? 2.5 : 2} filter={sel ? "url(#glow)" : undefined} />
-                <circle cx={x} cy={y} r={2.5} fill={color} />
-                {(zoom > 1.2 || sel) && (
+              <g
+                key={i}
+                onClick={() => { setSelPort(sel ? null : p); if (!sel) setLastSelected('port'); }}
+                onMouseEnter={() => setHoverPort(p)}
+                onMouseLeave={() => setHoverPort(null)}
+                style={{ cursor: "pointer" }}
+              >
+                {showHalo && <circle cx={x} cy={y} r={20} fill={color} opacity={0.12} />}
+                {hasStorm && <circle cx={x} cy={y} r={32} fill="#dc2626" opacity={0.15} className="storm-pulse" />}
+                <circle
+                  cx={x}
+                  cy={y}
+                  r={outerRadius}
+                  fill="none"
+                  stroke={color}
+                  strokeWidth={strokeWidth}
+                  filter={showHalo ? "url(#glow)" : undefined}
+                  style={{ transition: "all 0.15s ease" }}
+                />
+                <circle cx={x} cy={y} r={centerRadius} fill={color} style={{ transition: "all 0.15s ease" }} />
+                {(zoom > 1.0 || sel || isHovered) && (
                   <>
-                    <text x={x + 12} y={y + 4} fill="#4a6a8a" fontSize={11} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.3}>
+                    <text x={x + 14} y={y + 4} fill="#4a6a8a" fontSize={11.5} fontWeight={600} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.3}>
                       {p.name} {weatherIcon}
                     </text>
                     {weather && (
-                      <text x={x + 12} y={y + 16} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">
+                      <text x={x + 14} y={y + 17} fill="#64748b" fontSize={9.5} fontFamily="IBM Plex Mono,monospace">
                         {weather.temp}°C
                       </text>
                     )}
