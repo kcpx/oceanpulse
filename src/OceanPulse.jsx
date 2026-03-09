@@ -450,6 +450,101 @@ export default function OceanPulse() {
     return density;
   }, [densityMode, filtered, pt, dims]);
 
+  // Alert Detection System
+  const alerts = useMemo(() => {
+    const alertList = [];
+
+    // Port congestion alerts
+    PORTS.forEach(port => {
+      if (port.congestion >= 70) {
+        alertList.push({
+          id: `port-${port.name}`,
+          severity: 'critical',
+          type: 'congestion',
+          title: `${port.name} congestion critical`,
+          details: `${port.waiting} ships waiting`,
+          location: port.coords,
+          timestamp: Date.now()
+        });
+      } else if (port.congestion >= 50) {
+        alertList.push({
+          id: `port-${port.name}`,
+          severity: 'warning',
+          type: 'congestion',
+          title: `${port.name} congestion rising`,
+          details: `${port.waiting} ships waiting`,
+          location: port.coords,
+          timestamp: Date.now()
+        });
+      }
+    });
+
+    // Weather/storm alerts
+    PORTS.forEach(port => {
+      const weather = portWeather[port.name];
+      if (weather && (weather.condition.toLowerCase().includes('storm') || weather.windSpeed > 35)) {
+        alertList.push({
+          id: `storm-${port.name}`,
+          severity: weather.windSpeed > 45 ? 'critical' : 'warning',
+          type: 'weather',
+          title: `Storm near ${port.name}`,
+          details: `Wind: ${weather.windSpeed} kn, ${weather.description}`,
+          location: port.coords,
+          timestamp: Date.now()
+        });
+      }
+    });
+
+    // Market alerts
+    if (Math.abs(freight.bdic) > 2) {
+      alertList.push({
+        id: 'market-bdi',
+        severity: 'watch',
+        type: 'market',
+        title: `Baltic Dry Index ${freight.bdic > 0 ? 'rising' : 'falling'}`,
+        details: `${freight.bdic > 0 ? '+' : ''}${freight.bdic}% change`,
+        location: null,
+        timestamp: Date.now()
+      });
+    }
+
+    if (Math.abs(freight.crudec) > 2) {
+      alertList.push({
+        id: 'market-crude',
+        severity: 'watch',
+        type: 'market',
+        title: `Brent Crude ${freight.crudec > 0 ? 'rising' : 'falling'}`,
+        details: `${freight.crudec > 0 ? '+' : ''}${freight.crudec}% change`,
+        location: null,
+        timestamp: Date.now()
+      });
+    }
+
+    // Sort by severity: critical → warning → watch
+    const severityOrder = { critical: 0, warning: 1, watch: 2 };
+    return alertList.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+  }, [portWeather, freight]);
+
+  // Handle alert click - zoom to location
+  const handleAlertClick = useCallback((alert) => {
+    if (alert.location) {
+      // Find the port and select it
+      const port = PORTS.find(p => p.coords[0] === alert.location[0] && p.coords[1] === alert.location[1]);
+      if (port) {
+        setSelPort(port);
+        // Zoom to port location
+        const [x, y] = pt(port.coords[0], port.coords[1]);
+        const targetZoom = 2;
+        setZoom(targetZoom);
+        // Center on port
+        setPan({
+          x: dims.w / 2 - x * targetZoom,
+          y: dims.h / 2 - y * targetZoom
+        });
+      }
+    }
+  }, [pt, dims]);
+
   return (
     <div style={{ background: "#f8f9fa", color: "#212529", fontFamily: "'IBM Plex Mono',monospace", minHeight: "100vh" }}>
       <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
@@ -660,8 +755,14 @@ export default function OceanPulse() {
         </div>
       </div>
 
-      {/* MAP */}
-      <div ref={containerRef} style={{ background: "#e0f2fe", borderBottom: "1px solid #cbd5e1", position: "relative", width: "100%" }}>
+      {/* MAIN LAYOUT: 3-ZONE COMMAND CENTER */}
+      <div style={{ display: "flex", minHeight: "calc(100vh - 200px)" }}>
+
+        {/* LEFT/CENTER ZONE: Map + Bottom Panels */}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+
+          {/* MAP */}
+          <div ref={containerRef} style={{ background: "#e0f2fe", borderBottom: "1px solid #cbd5e1", position: "relative", width: "100%", flex: 1 }}>
         {!worldGeo && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10, height: 460 }}>
             <div style={{ color: "#64748b", fontSize: 11, letterSpacing: 3 }}>LOADING MARITIME DATA...</div>
@@ -1028,6 +1129,77 @@ export default function OceanPulse() {
           </div>
         </div>
       </div>
+
+        </div> {/* End LEFT/CENTER ZONE */}
+
+        {/* RIGHT PANEL: INTELLIGENCE FEED */}
+        <div style={{ width: 320, background: "#ffffff", borderLeft: "1px solid #dee2e6", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 200px)", overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #dee2e6", background: "#f8f9fa" }}>
+            <div style={{ fontSize: 13, color: "#0369a1", letterSpacing: 2, fontWeight: 700 }}>🔔 LIVE INTELLIGENCE</div>
+            <div style={{ fontSize: 11, color: "#64748b", marginTop: 4 }}>{alerts.length} ACTIVE ALERTS</div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: "auto", padding: "12px" }}>
+            {alerts.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "40px 20px", color: "#94a3b8" }}>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>✓</div>
+                <div style={{ fontSize: 12 }}>All systems normal</div>
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {alerts.map(alert => {
+                  const severityColors = {
+                    critical: { bg: "rgba(220,38,38,0.1)", border: "#dc2626", text: "#dc2626", icon: "🔴" },
+                    warning: { bg: "rgba(234,88,12,0.1)", border: "#ea580c", text: "#ea580c", icon: "🟠" },
+                    watch: { bg: "rgba(250,204,21,0.1)", border: "#facc15", text: "#ca8a04", icon: "🟡" }
+                  };
+                  const colors = severityColors[alert.severity];
+
+                  return (
+                    <div
+                      key={alert.id}
+                      onClick={() => handleAlertClick(alert)}
+                      style={{
+                        background: colors.bg,
+                        border: `1px solid ${colors.border}`,
+                        borderLeft: `4px solid ${colors.border}`,
+                        borderRadius: 6,
+                        padding: "12px",
+                        cursor: alert.location ? "pointer" : "default",
+                        transition: "all 0.2s"
+                      }}
+                      onMouseEnter={(e) => {
+                        if (alert.location) e.currentTarget.style.transform = "translateX(4px)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateX(0)";
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "start", gap: 8, marginBottom: 6 }}>
+                        <span style={{ fontSize: 14 }}>{colors.icon}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 12, color: colors.text, fontWeight: 700, marginBottom: 4, letterSpacing: 0.3 }}>
+                            {alert.title.toUpperCase()}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#64748b", lineHeight: 1.5 }}>
+                            {alert.details}
+                          </div>
+                        </div>
+                      </div>
+                      {alert.location && (
+                        <div style={{ fontSize: 10, color: "#94a3b8", marginTop: 6, display: "flex", alignItems: "center", gap: 4 }}>
+                          📍 Click to zoom
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+      </div> {/* End MAIN LAYOUT */}
 
       {/* Freight Modal */}
       {freightModal && (
