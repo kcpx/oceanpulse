@@ -262,6 +262,7 @@ export default function OceanPulse() {
   const [riskMode, setRiskMode] = useState(false);
   const [selVessel, setSelVessel] = useState(null);
   const [selPort, setSelPort] = useState(null);
+  const [selRoute, setSelRoute] = useState(null);
   const [freightModal, setFreightModal] = useState(false);
   const [tickerPos, setTickerPos] = useState(0);
   const [freight, setFreight] = useState({ bdi: 1842, fbx: 3920, crude: 82.14, bdic: 2.1, fbxc: 4.8, crudec: -1.2 });
@@ -879,7 +880,22 @@ export default function OceanPulse() {
           {showRoutes && ROUTES.map((r, i) => {
             const [x1, y1] = pt(r.from[0], r.from[1]);
             const [x2, y2] = pt(r.to[0], r.to[1]);
-            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#dc2626" strokeWidth={1.5} strokeOpacity={0.8} strokeDasharray="6,4" />;
+            const isSelected = selRoute?.name === r.name;
+            return (
+              <g key={i} style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setSelRoute(isSelected ? null : r); }}>
+                {/* Invisible hitbox for easier clicking */}
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={12} />
+                {/* Visible route line */}
+                <line
+                  x1={x1} y1={y1} x2={x2} y2={y2}
+                  stroke={isSelected ? "#0ea5e9" : "#dc2626"}
+                  strokeWidth={isSelected ? 3 : 1.5}
+                  strokeOpacity={isSelected ? 1 : 0.8}
+                  strokeDasharray={isSelected ? "8,3" : "6,4"}
+                  filter={isSelected ? "url(#glow)" : undefined}
+                />
+              </g>
+            );
           })}
 
           {PORTS.map((p, i) => {
@@ -1095,6 +1111,119 @@ export default function OceanPulse() {
                     </text>
                   </>
                 )}
+              </g>
+            );
+          })()}
+
+          {selRoute && (() => {
+            // Calculate route statistics
+            const routeVessels = vessels.filter(v => v.route.name === selRoute.name);
+            const vesselCount = routeVessels.length;
+            const avgSpeed = vesselCount > 0 ? Math.round(routeVessels.reduce((sum, v) => sum + v.speed, 0) / vesselCount) : 0;
+
+            // Calculate approximate distance (haversine formula simplified)
+            const toRad = deg => deg * Math.PI / 180;
+            const R = 6371; // Earth radius in km
+            const dLat = toRad(selRoute.to[1] - selRoute.from[1]);
+            const dLon = toRad(selRoute.to[0] - selRoute.from[0]);
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(toRad(selRoute.from[1])) * Math.cos(toRad(selRoute.to[1])) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = Math.round(R * c);
+
+            // Estimate transit time
+            const transitHours = avgSpeed > 0 ? Math.round(distance / (avgSpeed * 1.852)) : 0; // kn to km/h
+            const transitDays = Math.floor(transitHours / 24);
+
+            // Check for congestion at endpoints
+            const startPort = PORTS.find(p =>
+              Math.abs(p.coords[0] - selRoute.from[0]) < 5 &&
+              Math.abs(p.coords[1] - selRoute.from[1]) < 5
+            );
+            const endPort = PORTS.find(p =>
+              Math.abs(p.coords[0] - selRoute.to[0]) < 5 &&
+              Math.abs(p.coords[1] - selRoute.to[1]) < 5
+            );
+
+            const startCongestion = startPort ? startPort.congestion : 0;
+            const endCongestion = endPort ? endPort.congestion : 0;
+            const avgCongestion = Math.round((startCongestion + endCongestion) / 2);
+            const congestionColor = avgCongestion >= 70 ? "#dc2626" : avgCongestion >= 50 ? "#f59e0b" : "#22c55e";
+
+            // Calculate efficiency score (based on speed, congestion, vessel count)
+            const speedScore = (avgSpeed / 20) * 40; // Max 40 points
+            const congestionScore = ((100 - avgCongestion) / 100) * 40; // Max 40 points
+            const densityScore = Math.min((vesselCount / 30) * 20, 20); // Max 20 points
+            const efficiency = Math.round(speedScore + congestionScore + densityScore);
+            const efficiencyColor = efficiency >= 70 ? "#22c55e" : efficiency >= 50 ? "#f59e0b" : "#dc2626";
+
+            // Position card in center-right
+            const cardWidth = 320;
+            const cardHeight = 280;
+            const bx = Math.max(dims.w - cardWidth - 20, 20);
+            const by = Math.max((dims.h - cardHeight) / 2, 20);
+
+            return (
+              <g>
+                <rect x={bx} y={by} width={cardWidth} height={cardHeight} rx={6} fill="#ffffff" stroke="#0ea5e9" strokeWidth={2} opacity={0.98} filter="url(#glow)" />
+
+                {/* Header */}
+                <rect x={bx} y={by} width={cardWidth} height={32} rx={6} fill="#0ea5e9" opacity={0.15} />
+                <text x={bx + 12} y={by + 21} fill="#0ea5e9" fontSize={13} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>🚢 ROUTE INTELLIGENCE</text>
+                <text x={bx + cardWidth - 20} y={by + 21} fill="#64748b" fontSize={14} style={{ cursor: "pointer" }} fontFamily="IBM Plex Mono,monospace" onClick={() => setSelRoute(null)}>✕</text>
+
+                {/* Route Name */}
+                <text x={bx + 12} y={by + 50} fill="#0f172a" fontSize={14} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{selRoute.name}</text>
+
+                {/* Efficiency Score */}
+                <rect x={bx + 12} y={by + 62} width={120} height={28} rx={4} fill={efficiencyColor} opacity={0.15} stroke={efficiencyColor} strokeWidth={1} />
+                <text x={bx + 18} y={by + 74} fill={efficiencyColor} fontSize={9} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>EFFICIENCY</text>
+                <text x={bx + 18} y={by + 86} fill={efficiencyColor} fontSize={18} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{efficiency}/100</text>
+
+                {/* Distance */}
+                <rect x={bx + 140} y={by + 62} width={cardWidth - 152} height={28} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                <text x={bx + 146} y={by + 74} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>DISTANCE</text>
+                <text x={bx + 146} y={by + 86} fill="#0f172a" fontSize={16} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{distance.toLocaleString()} km</text>
+
+                {/* Divider */}
+                <line x1={bx + 12} y1={by + 102} x2={bx + cardWidth - 12} y2={by + 102} stroke="#e5e7eb" strokeWidth={1} />
+
+                {/* Stats Grid */}
+                <text x={bx + 12} y={by + 120} fill="#0369a1" fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>ROUTE STATISTICS</text>
+
+                {/* Vessels */}
+                <rect x={bx + 12} y={by + 130} width={94} height={48} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                <text x={bx + 18} y={by + 142} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>VESSELS</text>
+                <text x={bx + 18} y={by + 158} fill="#0f172a" fontSize={20} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{vesselCount}</text>
+                <text x={bx + 18} y={by + 172} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace">active</text>
+
+                {/* Avg Speed */}
+                <rect x={bx + 113} y={by + 130} width={94} height={48} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                <text x={bx + 119} y={by + 142} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>AVG SPEED</text>
+                <text x={bx + 119} y={by + 158} fill="#0f172a" fontSize={20} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{avgSpeed}</text>
+                <text x={bx + 119} y={by + 172} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace">knots</text>
+
+                {/* Transit Time */}
+                <rect x={bx + 214} y={by + 130} width={94} height={48} rx={4} fill="#f8fafc" stroke="#cbd5e1" strokeWidth={1} />
+                <text x={bx + 220} y={by + 142} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>TRANSIT</text>
+                <text x={bx + 220} y={by + 158} fill="#0f172a" fontSize={20} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{transitDays}d</text>
+                <text x={bx + 220} y={by + 172} fill="#64748b" fontSize={8} fontFamily="IBM Plex Mono,monospace">{transitHours % 24}h</text>
+
+                {/* Congestion Status */}
+                <rect x={bx + 12} y={by + 190} width={cardWidth - 24} height={42} rx={4} fill="rgba(100,116,139,0.05)" stroke="#e5e7eb" strokeWidth={1} />
+                <text x={bx + 18} y={by + 204} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace" letterSpacing={0.5}>PORT CONGESTION</text>
+                <rect x={bx + 18} y={by + 210} width={cardWidth - 48} height={8} rx={4} fill="#e5e7eb" />
+                <rect x={bx + 18} y={by + 210} width={(cardWidth - 48) * (avgCongestion / 100)} height={8} rx={4} fill={congestionColor} />
+                <text x={bx + 18} y={by + 227} fill={congestionColor} fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace">{avgCongestion}% AVG</text>
+                {startPort && <text x={bx + 100} y={by + 227} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">Start: {startCongestion}%</text>}
+                {endPort && <text x={bx + 200} y={by + 227} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">End: {endCongestion}%</text>}
+
+                {/* Comparison */}
+                <text x={bx + 12} y={by + 250} fill="#0369a1" fontSize={10} fontWeight={700} fontFamily="IBM Plex Mono,monospace" letterSpacing={1}>RANKING</text>
+                <text x={bx + 18} y={by + 265} fill="#64748b" fontSize={9} fontFamily="IBM Plex Mono,monospace">
+                  {efficiency >= 70 ? "✓ High Efficiency Route" : efficiency >= 50 ? "⚠ Moderate Efficiency" : "⚠ Low Efficiency Route"}
+                </text>
               </g>
             );
           })()}
