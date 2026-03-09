@@ -852,7 +852,7 @@ export default function OceanPulse() {
           {showRoutes && ROUTES.map((r, i) => {
             const [x1, y1] = pt(r.from[0], r.from[1]);
             const [x2, y2] = pt(r.to[0], r.to[1]);
-            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#64748b" strokeWidth={0.6} strokeOpacity={0.4} strokeDasharray="4,8" />;
+            return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#dc2626" strokeWidth={1.5} strokeOpacity={0.8} strokeDasharray="6,4" />;
           })}
 
           {PORTS.map((p, i) => {
