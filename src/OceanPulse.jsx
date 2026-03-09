@@ -151,12 +151,48 @@ async function fetchWeatherForPort(lat, lon) {
   }
 }
 
+// Simulated weather fallback
+function makeSimulatedWeather() {
+  const conditions = [
+    { condition: "Clear", description: "clear sky", icon: "01d" },
+    { condition: "Clouds", description: "few clouds", icon: "02d" },
+    { condition: "Clouds", description: "scattered clouds", icon: "03d" },
+    { condition: "Rain", description: "light rain", icon: "10d" },
+    { condition: "Drizzle", description: "light drizzle", icon: "09d" }
+  ];
+
+  const weatherMap = {};
+  PORTS.forEach((port, i) => {
+    const weather = conditions[i % conditions.length];
+    const baseTemp = port.coords[1] > 0 ? (30 - Math.abs(port.coords[1]) * 0.4) : (30 - Math.abs(port.coords[1]) * 0.3);
+    weatherMap[port.name] = {
+      temp: Math.round(baseTemp + (Math.random() - 0.5) * 8),
+      condition: weather.condition,
+      description: weather.description,
+      windSpeed: Math.round(10 + Math.random() * 20),
+      windDir: Math.round(Math.random() * 360),
+      humidity: Math.round(60 + Math.random() * 30),
+      pressure: Math.round(1010 + Math.random() * 20),
+      icon: weather.icon
+    };
+  });
+  return weatherMap;
+}
+
 async function fetchAllPortWeather() {
   try {
     const weatherPromises = PORTS.map(port =>
       fetchWeatherForPort(port.coords[1], port.coords[0])
     );
     const weatherData = await Promise.all(weatherPromises);
+
+    // Check if any weather data is valid
+    const hasValidData = weatherData.some(w => w !== null);
+    if (!hasValidData) {
+      console.warn('Weather API unavailable, using simulated data');
+      return makeSimulatedWeather();
+    }
+
     const weatherMap = {};
     PORTS.forEach((port, i) => {
       weatherMap[port.name] = weatherData[i];
@@ -164,7 +200,7 @@ async function fetchAllPortWeather() {
     return weatherMap;
   } catch (error) {
     console.error('Error fetching all port weather:', error);
-    return {};
+    return makeSimulatedWeather();
   }
 }
 
