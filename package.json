@@ -1,7 +1,7 @@
 {
-  "name": "oceanpulse",
+  "name": "freightdesk",
   "version": "1.0.0",
-  "description": "OceanPulse — Real-Time Maritime Intelligence Platform",
+  "description": "FreightDesk — Bloomberg Terminal for Maritime Intelligence",
   "type": "module",
   "scripts": {
     "dev": "vite",

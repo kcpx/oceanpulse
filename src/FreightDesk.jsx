@@ -252,7 +252,7 @@ const getWeatherEmoji = (condition) => {
   return "⛅";
 };
 
-export default function OceanPulse() {
+export default function FreightDesk() {
   const containerRef = useRef(null);
   const tickRef = useRef(0);
   const [vessels, setVessels] = useState(makeVessels);
@@ -553,7 +553,7 @@ export default function OceanPulse() {
       {dataSource === 'loading' && history.length === 0 && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15,23,42,0.95)', zIndex: 9999, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 24 }}>
           <div style={{ width: 48, height: 48, border: '4px solid rgba(14,165,233,0.2)', borderTop: '4px solid #0ea5e9', borderRadius: '50%', animation: 'spinner 0.8s linear infinite' }} />
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#0ea5e9', letterSpacing: 2 }}>OCEANPULSE</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: '#0ea5e9', letterSpacing: 2 }}>FREIGHTDESK</div>
           <div style={{ fontSize: 12, color: '#64748b', letterSpacing: 1 }}>Loading maritime intelligence...</div>
         </div>
       )}
@@ -649,7 +649,7 @@ export default function OceanPulse() {
         <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <span style={{ fontSize: 32 }}>🌊</span>
           <div>
-            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 4, color: "#0f172a" }}>OCEANPULSE</div>
+            <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: 4, color: "#0f172a" }}>FREIGHTDESK</div>
             <div style={{ fontSize: 11, color: "#64748b", letterSpacing: 3 }}>MARITIME INTELLIGENCE PLATFORM</div>
           </div>
         </div>

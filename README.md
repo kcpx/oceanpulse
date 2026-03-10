@@ -1,4 +1,4 @@
-# 🌊 OceanPulse — Maritime Intelligence Platform
+# 📊 FreightDesk — Maritime Intelligence Platform
 
 > A Bloomberg Terminal-style real-time maritime intelligence dashboard built with React, D3, and Recharts.
 
@@ -123,7 +123,7 @@ oceanpulse/
 
 ## 🎯 Resume Framing
 
-> **OceanPulse — Global Maritime Intelligence Platform**
+> **FreightDesk — Global Maritime Intelligence Platform**
 > Built interactive world map visualizing real-time vessel movement across 12 global shipping lanes. Integrated live maritime geography via D3 geoNaturalEarth projection with freight rate indices and port congestion scoring. Developed geopolitical risk overlay for strategic shipping chokepoints (Suez, Hormuz, Malacca, Panama). Designed for extensibility with AIS API and FRED data integration.
 
 ---
